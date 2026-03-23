@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveBookingTarget } from "@/lib/bookings/target";
 import { isKillSwitchActive, KILL_SWITCHES } from "@/src/lib/db/feature-flags";
+import { rateLimit, getClientIp, RATE_LIMIT_WINDOW_MS } from "@/lib/auth/rate-limit";
 import { badRequest, badRequestFromZod, created as createdResponse, notFound, ok } from "@/lib/api/responses";
 import { pricingSnapshotSchema } from "@/lib/pricing/schema";
 import { BookingsRepo, JobCardsRepo, ProfilesRepo } from "@/src/lib/store";
@@ -53,6 +54,16 @@ export async function POST(request: Request) {
   // Kill switch check — must be first
   if (await isKillSwitchActive(KILL_SWITCHES.PUBLIC_BOOKING)) {
     return NextResponse.json({ error: 'Booking is temporarily unavailable' }, { status: 503 })
+  }
+
+  // Rate limit: 5 booking attempts per IP per hour
+  const ip = getClientIp(request.headers)
+  const bookingRateCheck = rateLimit(`public-booking:ip:${ip}`, 5, RATE_LIMIT_WINDOW_MS)
+  if (!bookingRateCheck.allowed) {
+    return NextResponse.json(
+      { ok: false, error: { code: 'RATE_LIMITED', message: 'Too many booking attempts. Please try again later.' } },
+      { status: 429 }
+    )
   }
 
   const json = await request.json().catch(() => ({}));

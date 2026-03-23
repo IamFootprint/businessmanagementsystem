@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { requireRole } from "@/src/lib/auth/localSession";
 import { ChatThreadsRepo, ServiceItemsRepo } from "@/src/lib/store";
-import { ok, badRequest, forbidden } from "@/lib/api/responses";
+import { ok, badRequest, forbidden, tooManyRequests } from "@/lib/api/responses";
+import { rateLimit, RATE_LIMIT_WINDOW_MS } from "@/lib/auth/rate-limit";
+import { isKillSwitchActive, KILL_SWITCHES } from "@/src/lib/db/feature-flags";
 
 const messageSchema = z.object({
   message: z.string().min(1),
@@ -32,6 +34,17 @@ export async function GET() {
 export async function POST(request: Request) {
   const auth = await requireRole(["CLIENT"]);
   if (!auth.ok) return auth.response!;
+
+  // Kill switch check
+  if (await isKillSwitchActive(KILL_SWITCHES.CHAT)) {
+    return tooManyRequests("SERVICE_UNAVAILABLE", "Chat is temporarily unavailable.")
+  }
+
+  // Rate limit: 20 chat messages per user per hour
+  const chatRateCheck = rateLimit(`chat:user:${auth.profile.id}`, 20, RATE_LIMIT_WINDOW_MS)
+  if (!chatRateCheck.allowed) {
+    return tooManyRequests("RATE_LIMITED", "Too many messages. Please wait before sending more.")
+  }
 
   const payload = await request.json().catch(() => ({}));
   const parsed = messageSchema.safeParse(payload);
