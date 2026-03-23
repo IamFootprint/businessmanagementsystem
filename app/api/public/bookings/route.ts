@@ -1,5 +1,7 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveBookingTarget } from "@/lib/bookings/target";
+import { isKillSwitchActive, KILL_SWITCHES } from "@/src/lib/db/feature-flags";
 import { badRequest, badRequestFromZod, created as createdResponse, notFound, ok } from "@/lib/api/responses";
 import { pricingSnapshotSchema } from "@/lib/pricing/schema";
 import { BookingsRepo, JobCardsRepo, ProfilesRepo } from "@/src/lib/store";
@@ -48,6 +50,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Kill switch check — must be first
+  if (await isKillSwitchActive(KILL_SWITCHES.PUBLIC_BOOKING)) {
+    return NextResponse.json({ error: 'Booking is temporarily unavailable' }, { status: 503 })
+  }
+
   const json = await request.json().catch(() => ({}));
   const parsed = bookingSchema.safeParse(json);
   if (!parsed.success) {
