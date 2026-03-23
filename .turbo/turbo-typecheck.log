@@ -1,0 +1,4 @@
+
+> @cycledesk/web@0.1.0 typecheck /Users/shimane/Desktop/MobileApps/CycleDesk/cycledesk-st/apps/web
+> tsc --noEmit
+

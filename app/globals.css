@@ -1,0 +1,531 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: 219 42% 33%;
+    --primary-foreground: 0 0% 100%;
+    --background: 40 15% 97%;
+    --foreground: 220 20% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 12%;
+    --secondary: 160 18% 93%;
+    --secondary-foreground: 160 45% 18%;
+    --muted: 220 10% 95%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 43 90% 50%;
+    --accent-foreground: 43 90% 12%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 90%;
+    --input: 220 13% 90%;
+    --ring: 160 45% 22%;
+    --radius: 0.625rem;
+
+    --status-pending: 43 90% 50%;
+    --status-confirmed: 160 45% 30%;
+    --status-enroute: 210 80% 52%;
+    --status-arrived: 210 80% 52%;
+    --status-progress: 262 52% 55%;
+    --status-completed: 152 60% 40%;
+    --status-cancelled: 0 72% 51%;
+    --status-refunded: 220 10% 46%;
+    --status-failed: 0 72% 51%;
+
+    --sidebar-background: 160 35% 14%;
+    --sidebar-foreground: 160 8% 80%;
+    --sidebar-primary: 43 90% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 160 30% 20%;
+    --sidebar-accent-foreground: 160 8% 92%;
+    --sidebar-border: 160 25% 22%;
+    --sidebar-ring: 43 90% 50%;
+    --sidebar-muted: 160 10% 40%;
+
+    --sidebar-width: 260px;
+    --navbar-height: 56px;
+  }
+
+  .dark {
+    --primary: 160 45% 40%;
+    --primary-foreground: 0 0% 100%;
+    --background: 220 18% 8%;
+    --foreground: 220 10% 92%;
+    --card: 220 16% 11%;
+    --card-foreground: 220 10% 92%;
+    --popover: 220 16% 11%;
+    --popover-foreground: 220 10% 92%;
+    --secondary: 160 15% 14%;
+    --secondary-foreground: 160 30% 70%;
+    --muted: 220 12% 15%;
+    --muted-foreground: 220 10% 58%;
+    --accent: 43 85% 48%;
+    --accent-foreground: 43 90% 94%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 12% 18%;
+    --input: 220 12% 18%;
+    --ring: 160 45% 40%;
+    --sidebar-background: 220 20% 6%;
+    --sidebar-foreground: 220 10% 80%;
+    --sidebar-primary: 43 85% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 16% 12%;
+    --sidebar-accent-foreground: 220 10% 85%;
+    --sidebar-border: 220 15% 14%;
+    --sidebar-ring: 43 85% 48%;
+    --sidebar-muted: 220 10% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "ss01", "ss02";
+  }
+}
+
+@layer components {
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase;
+  }
+
+  .stat-tile {
+    @apply p-5 rounded-xl bg-card border border-border;
+  }
+  .stat-tile p {
+    @apply text-xs text-muted-foreground mb-1;
+  }
+  .stat-tile strong {
+    @apply text-2xl font-display font-bold text-foreground block;
+  }
+  .stat-tile span {
+    @apply text-xs text-muted-foreground;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Shop / Tenant Status Bar */
+.shop-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 1rem;
+  background: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+.shop-status-bar-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shop-status-bar-role {
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+@media (max-width: 639px) {
+  .shop-status-bar-role { display: none; }
+}
+
+/* Form grid: single column on mobile, 2-column on sm+ */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.form-grid-full {
+  grid-column: 1 / -1;
+}
+
+/* ─── Marketing page design tokens ───────────────────────────────────────────── */
+:root {
+  --marketing-primary: #4a3f6b;
+  --marketing-glow: #5ee7df;
+  --marketing-secondary: #3d3951;
+  --marketing-navy: #1a1f2e;
+  --marketing-sky: #00d4ff;
+}
+
+.gradient-hero {
+  background: linear-gradient(160deg, var(--marketing-navy) 0%, var(--marketing-secondary) 50%, var(--marketing-primary) 100%);
+}
+.gradient-primary {
+  background: linear-gradient(135deg, var(--marketing-primary) 0%, var(--marketing-secondary) 100%);
+}
+.shadow-glow {
+  box-shadow: 0 0 40px -10px var(--marketing-glow);
+}
+.shadow-glow-sm {
+  box-shadow: 0 0 20px -5px var(--marketing-glow);
+}
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
+}
+.glass {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.8);
+}
+[data-theme="dark"] .glass {
+  background: rgba(26, 22, 41, 0.8);
+}
+
+.marketing-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.marketing-section { padding: 5rem 0; }
+.marketing-section-sm { padding: 3rem 0; }
+
+.marketing-heading-xl {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+@media (min-width: 768px) {
+  .marketing-heading-xl { font-size: 3rem; }
+}
+@media (min-width: 1024px) {
+  .marketing-heading-xl { font-size: 3.75rem; }
+}
+
+.marketing-heading-lg {
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+@media (min-width: 768px) {
+  .marketing-heading-lg { font-size: 2.25rem; }
+}
+
+.marketing-text-lg {
+  font-size: 1.125rem;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+}
+
+.marketing-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 2rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: white;
+  background: linear-gradient(135deg, var(--marketing-primary), var(--marketing-secondary));
+  box-shadow: 0 0 20px -5px var(--marketing-glow);
+  transition: opacity 0.2s;
+  text-decoration: none;
+}
+.marketing-btn-primary:hover { opacity: 0.9; }
+
+.marketing-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 2rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  transition: background 0.2s;
+  text-decoration: none;
+}
+.marketing-btn-secondary:hover { background: var(--muted); }
+
+.marketing-cta-section {
+  padding: 5rem 0;
+  text-align: center;
+}
+.marketing-cta-headline {
+  font-size: 2rem;
+  font-weight: 700;
+}
+.marketing-cta-text {
+  margin-top: 1rem;
+  color: var(--muted-foreground);
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+.marketing-cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+/* Marketing grid layouts */
+.marketing-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+@media (min-width: 768px) {
+  .marketing-grid-2 { grid-template-columns: repeat(2, 1fr); }
+}
+
+.marketing-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  .marketing-grid-3 { grid-template-columns: repeat(3, 1fr); }
+}
+
+.marketing-grid-4 {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .marketing-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .marketing-grid-4 { grid-template-columns: repeat(4, 1fr); }
+}
+
+.marketing-hero-grid {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 1024px) {
+  .marketing-hero-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.marketing-feature-grid {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 1024px) {
+  .marketing-feature-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Marketing utility classes */
+.gradient-text {
+  background: linear-gradient(135deg, var(--marketing-glow), var(--marketing-sky));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.shadow-elevated {
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+}
+
+/* Marketing navbar responsive */
+@media (max-width: 768px) {
+  .marketing-nav-desktop { display: none !important; }
+  .marketing-nav-mobile-btn { display: flex !important; }
+}
+@media (min-width: 769px) {
+  .marketing-nav-mobile-menu { display: none !important; }
+  .marketing-nav-mobile-btn { display: none !important; }
+}
+
+/* Marketing footer responsive */
+@media (min-width: 640px) {
+  .marketing-footer-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 768px) {
+  .marketing-footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
+}
+@media (min-width: 768px) {
+  .marketing-footer-bottom {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    text-align: left !important;
+  }
+}
+
+/* Marketing form inputs */
+.marketing-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: white;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  outline: none;
+}
+.marketing-input:focus-visible {
+  outline: 2px solid var(--marketing-glow);
+  outline-offset: 2px;
+}
+.marketing-textarea {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: white;
+  font-size: 0.9rem;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+.marketing-textarea:focus-visible {
+  outline: 2px solid var(--marketing-glow);
+  outline-offset: 2px;
+}
+
+/* Marketing section badge pill */
+.marketing-badge {
+  display: inline-block;
+  padding: 0.25rem 0.875rem;
+  border-radius: 9999px;
+  background: rgba(94, 231, 223, 0.1);
+  border: 1px solid rgba(94, 231, 223, 0.3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--marketing-glow);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.marketing-badge-danger {
+  background: rgba(255, 100, 100, 0.1);
+  border: 1px solid rgba(255, 100, 100, 0.2);
+  color: #ff6b6b;
+}
+
+/* Hero contrast card (before/after split) */
+.marketing-hero-contrast-card {
+  border-radius: 1rem;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.contrast-before {
+  padding: 1.5rem;
+  background: rgba(255, 100, 100, 0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.contrast-after {
+  padding: 1.5rem;
+  background: rgba(94, 231, 223, 0.04);
+}
+
+/* Belief section typography */
+.marketing-belief-text {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: rgba(255,255,255,0.7);
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+/* Narrative before/after grid */
+.marketing-narrative-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  .marketing-narrative-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.marketing-narrative-card {
+  background: rgba(255,255,255,0.03);
+  border-radius: 1rem;
+  padding: 2rem;
+  height: 100%;
+}
+.marketing-narrative-card-before {
+  border: 1px solid rgba(255, 100, 100, 0.15);
+}
+.marketing-narrative-card-after {
+  border: 1px solid rgba(94, 231, 223, 0.15);
+}
+
+/* Timeline items */
+.marketing-timeline-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.65);
+  list-style: none;
+}
+.marketing-timeline-item:last-child {
+  border-bottom: none;
+}
+.marketing-timeline-time {
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Feature sections (screenshot + text alternating) */
+@media (max-width: 767px) {
+  .marketing-feature-section {
+    grid-template-columns: 1fr !important;
+  }
+  .marketing-feature-section > * {
+    order: 0 !important;
+  }
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Embedded widget mode ──────────────────────────────────────────────────── */
+body.cd-embedded .cd-booking-header {
+  display: none !important;
+}
+body.cd-embedded {
+  background: transparent;
+}

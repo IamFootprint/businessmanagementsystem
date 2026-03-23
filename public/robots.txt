@@ -1,0 +1,15 @@
+# *
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /mech/
+Disallow: /platform/
+
+# Host
+Host: https://cycledesk.co.za
+
+# Sitemaps
+Sitemap: https://cycledesk.co.za/sitemap.xml

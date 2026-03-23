@@ -1,0 +1,59 @@
+[
+  {
+    "id": "prof_tebogo_owner",
+    "phone": "+27660994766",
+    "name": "Tebogo Mokwatlo",
+    "email": "info@servicemybikejoburg.co.za",
+    "role": "SHOP_OWNER",
+    "status": "ACTIVE",
+    "onboardingStatus": "SHOP_ACTIVE",
+    "consent": { "whatsappOptIn": true, "marketingOptIn": false },
+    "shopId": "shop_servicemybike_001",
+    "createdAtIso": "2025-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "prof_platform_owner",
+    "phone": "+27110000002",
+    "name": "Platform Owner",
+    "role": "PLATFORM_OWNER",
+    "status": "ACTIVE",
+    "onboardingStatus": "NONE",
+    "consent": { "whatsappOptIn": false, "marketingOptIn": false },
+    "shopId": "shop_servicemybike_001",
+    "createdAtIso": "2025-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "prof_shop_owner_test",
+    "phone": "+27110000001",
+    "name": "Shop Owner",
+    "role": "SHOP_OWNER",
+    "status": "ACTIVE",
+    "onboardingStatus": "SHOP_ACTIVE",
+    "consent": { "whatsappOptIn": false, "marketingOptIn": false },
+    "shopId": "shop_servicemybike_001",
+    "createdAtIso": "2025-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "prof_mechanic_test",
+    "phone": "+27110000003",
+    "name": "Tebogo Mokwatlo (Lead Mechanic)",
+    "role": "MECHANIC",
+    "status": "ACTIVE",
+    "onboardingStatus": "NONE",
+    "consent": { "whatsappOptIn": false, "marketingOptIn": false },
+    "shopId": "shop_servicemybike_001",
+    "specialties": ["drivetrain", "brakes"],
+    "createdAtIso": "2025-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "prof_client_test",
+    "phone": "+27110000004",
+    "name": "Client User",
+    "role": "CLIENT",
+    "status": "ACTIVE",
+    "onboardingStatus": "NONE",
+    "consent": { "whatsappOptIn": false, "marketingOptIn": false },
+    "shopId": "shop_servicemybike_001",
+    "createdAtIso": "2025-01-15T08:00:00.000Z"
+  }
+]

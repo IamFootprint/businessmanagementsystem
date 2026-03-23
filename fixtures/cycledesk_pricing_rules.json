@@ -1,0 +1,12 @@
+{
+  "calloutFeeCents": 10000,
+  "platformFeeCents": 2500,
+  "partsMarkupBps": 1500,
+  "afterHoursSurchargeBps": 2500,
+  "afterHoursEnabled": false,
+  "travelBands": [
+    { "fromKm": 0, "toKm": 5, "feeCents": 0 },
+    { "fromKm": 5, "toKm": 15, "feeCents": 5000 },
+    { "fromKm": 15, "toKm": 30, "feeCents": 10000 }
+  ]
+}

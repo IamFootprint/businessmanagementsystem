@@ -1,0 +1,64 @@
+.otp-success-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  min-height: 200px;
+}
+.otp-success-check { width: 64px; height: 64px; }
+.otp-success-svg { width: 64px; height: 64px; }
+.otp-success-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 2;
+  stroke-miterlimit: 10;
+  stroke: var(--primary, #22c55e);
+  animation: otp-circle 0.6s ease-in-out forwards;
+}
+.otp-success-path {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  stroke: var(--primary, #22c55e);
+  stroke-width: 3;
+  stroke-linecap: round;
+  animation: otp-check 0.3s 0.35s ease-in-out forwards;
+}
+.otp-success-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-align: center;
+  margin: 0;
+}
+.otp-success-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  text-align: center;
+  margin: 0;
+}
+.otp-success-progress {
+  width: 120px;
+  height: 3px;
+  background: var(--muted);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+.otp-success-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  animation: otp-progress 1.5s linear forwards;
+}
+@keyframes otp-circle { to { stroke-dashoffset: 0; } }
+@keyframes otp-check { to { stroke-dashoffset: 0; } }
+@keyframes otp-progress { from { width: 0; } to { width: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .otp-success-circle, .otp-success-path { animation: none; stroke-dashoffset: 0; }
+  .otp-success-progress-bar { animation: none; width: 100%; }
+}

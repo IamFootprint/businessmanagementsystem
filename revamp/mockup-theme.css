@@ -1,0 +1,54 @@
+.mockup-theme {
+  --primary: 222 39% 38%;
+  --primary-foreground: 0 0% 100%;
+  --background: 220 28% 97%;
+  --foreground: 224 20% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 20% 17%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 20% 17%;
+  --secondary: 220 17% 93%;
+  --secondary-foreground: 224 16% 31%;
+  --muted: 220 18% 95%;
+  --muted-foreground: 220 11% 47%;
+  --accent: 222 39% 38%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 17% 88%;
+  --input: 220 17% 88%;
+  --ring: 222 39% 38%;
+  --status-pending: 220 10% 40%;
+  --status-confirmed: 220 10% 40%;
+  --status-enroute: 220 10% 40%;
+  --status-arrived: 220 10% 40%;
+  --status-progress: 257 55% 58%;
+  --status-completed: 145 48% 46%;
+  --status-cancelled: 0 70% 50%;
+  --status-refunded: 220 10% 46%;
+  --status-failed: 0 70% 50%;
+}
+
+.mockup-theme,
+.mockup-theme * {
+  font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.mockup-theme .font-display,
+.mockup-theme .section-heading h1,
+.mockup-theme .section-heading h2,
+.mockup-theme .stat-tile strong {
+  font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.mockup-theme .panel,
+.mockup-theme .panel-padded,
+.mockup-theme .stat-tile {
+  border-color: hsl(var(--border));
+  box-shadow: none;
+}
+
+.mockup-theme .section-heading .kicker {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}

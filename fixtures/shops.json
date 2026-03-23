@@ -1,0 +1,49 @@
+[
+  {
+    "id": "shop_servicemybike_001",
+    "slug": "servicemybike",
+    "name": "ServiceMyBike Joburg",
+    "shopStatus": "ACTIVE",
+    "createdByProfileId": "prof_tebogo_owner",
+    "phone": "+27 11 123 4567",
+    "whatsapp": "+27 11 123 4567",
+    "email": "bookings@servicemybikejoburg.co.za",
+    "baseLocation": "Fourways, Johannesburg",
+    "businessDetails": {
+      "name": "ServiceMyBike Joburg",
+      "address": "Fourways, Johannesburg",
+      "city": "Johannesburg",
+      "contactEmail": "bookings@servicemybikejoburg.co.za",
+      "contactPhone": "+27 11 123 4567"
+    },
+    "operationalDefaults": {
+      "noticeHours": 24,
+      "assignmentMode": "AUTO",
+      "workingHours": [
+        { "day": "Mon", "start": "07:30", "end": "17:00", "active": true },
+        { "day": "Tue", "start": "07:30", "end": "17:00", "active": true },
+        { "day": "Wed", "start": "07:30", "end": "17:00", "active": true },
+        { "day": "Thu", "start": "07:30", "end": "17:00", "active": true },
+        { "day": "Fri", "start": "07:30", "end": "17:00", "active": true },
+        { "day": "Sat", "start": "07:30", "end": "17:00", "active": true },
+        { "day": "Sun", "start": "07:30", "end": "17:00", "active": false }
+      ]
+    },
+    "serviceModels": {
+      "fixedLocation": { "enabled": false },
+      "mobileMechanic": {
+        "enabled": true,
+        "serviceRadiusKm": 30,
+        "calloutFeeCents": 10000,
+        "travelBufferMins": 15,
+        "serviceAreas": ["Fourways", "Sandton", "Randburg", "Bryanston", "Midrand"]
+      }
+    },
+    "themeTokens": { "primaryColor": "#0f4d73", "shopName": "ServiceMyBike Joburg" },
+    "customDomains": ["book.servicemybikejoburg.co.za"],
+    "widgetConfig": { "authorizedDomains": [] },
+    "onboardingChecklist": { "completedItems": ["shop_created", "services_added", "hours_set"] },
+    "createdAtIso": "2025-01-15T08:00:00.000Z",
+    "updatedAtIso": "2025-01-15T08:00:00.000Z"
+  }
+]

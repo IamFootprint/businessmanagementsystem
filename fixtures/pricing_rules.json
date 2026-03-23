@@ -1,0 +1,18 @@
+{
+  "id": "pricing_rule_default",
+  "calloutFeeCents": 25000,
+  "platformFeeCents": 1500,
+  "platformFeePercentBps": null,
+  "partsMarkupBps": 1000,
+  "travelBandRulesJson": [
+    { "minKm": 0, "maxKm": 5, "feeCents": 0, "label": "0–5 km" },
+    { "minKm": 5, "maxKm": 10, "feeCents": 3500, "label": "5–10 km" },
+    { "minKm": 10, "maxKm": 20, "feeCents": 7000, "label": "10–20 km" },
+    { "minKm": 20, "maxKm": 30, "feeCents": 12000, "label": "20–30 km" },
+    { "minKm": 30, "maxKm": null, "feeCents": 20000, "label": "30+ km" }
+  ],
+  "afterHoursEnabled": false,
+  "afterHoursSurchargeBps": 1500,
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "isActive": true
+}

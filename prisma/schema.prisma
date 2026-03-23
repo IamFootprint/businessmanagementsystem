@@ -1,0 +1,640 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum ProfileRole {
+  ADMIN
+  MECHANIC
+  CUSTOMER
+}
+
+enum ProfileStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BookingStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum JobCardStatus {
+  SCHEDULED
+  EN_ROUTE
+  ARRIVED
+  IN_PROGRESS
+  AWAITING_APPROVAL
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  ISSUED
+  PAID
+}
+
+enum BikeType {
+  MTB
+  ROAD
+  GRAVEL
+  E_BIKE
+  OTHER
+}
+
+enum ChatMessageRole {
+  USER
+  ASSISTANT
+}
+
+enum ChargeType {
+  CONSUMABLE
+  ADDITIONAL
+}
+
+enum InvoiceLineType {
+  LABOUR
+  PART
+  CONSUMABLE
+  ADDITIONAL
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  API_KEY
+  WEBHOOK
+}
+
+// ─── Tenant ──────────────────────────────────────────────────────────────────
+
+model Shop {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  phone         String?
+  whatsapp      String?
+  email         String?
+  baseLocation  String?
+  themeTokens   Json?
+  businessHours String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profiles           Profile[]
+  bookings           Booking[]
+  jobCards            JobCard[]
+  invoices           Invoice[]
+  serviceItems       ServiceItem[]
+  servicePackages    ServicePackage[]
+  pricingRules       PricingRule[]
+  availabilityBlocks AvailabilityBlock[]
+  auditLogs          AuditLog[]
+  auditEvents        AuditEvent[]
+  invites            Invite[]
+  supportTickets     SupportTicket[]
+
+  @@map("shops")
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model Profile {
+  id            String        @id @default(cuid())
+  phone         String        @unique
+  name          String?
+  role          ProfileRole   @default(CUSTOMER)
+  status        ProfileStatus @default(ACTIVE)
+  lastLoginAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+
+  shopId        String?
+  shop          Shop?         @relation(fields: [shopId], references: [id])
+
+  sessions      Session[]
+  invites       Invite[]
+  bikes         Bike[]
+  chatThreads   ChatThread[]
+  ratings       Rating[]
+
+  @@index([shopId])
+  @@map("profiles")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  profileId   String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("sessions")
+}
+
+model Invite {
+  id          String      @id @default(cuid())
+  token       String      @unique
+  role        ProfileRole @default(MECHANIC)
+  phone       String
+  name        String?
+  usedAt      DateTime?
+  createdAt   DateTime    @default(now())
+
+  createdBy   Profile?    @relation(fields: [createdById], references: [id])
+  createdById String?
+
+  shopId      String
+  shop        Shop        @relation(fields: [shopId], references: [id])
+
+  @@index([token])
+  @@index([shopId])
+  @@map("invites")
+}
+
+// ─── Catalog ──────────────────────────────────────────────────────────────────
+
+model ServiceItem {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  basePriceCents  Int
+  durationMins    Int
+  category        String?
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id])
+  bookings        Booking[]
+  jobCards        JobCard[]
+
+  @@index([shopId])
+  @@index([isActive, sortOrder, name])
+  @@map("service_items")
+}
+
+model ServicePackage {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  durationMinutes Int
+  priceCents      Int
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id])
+  bookings        Booking[]
+
+  @@index([shopId])
+  @@index([isActive, sortOrder, name])
+  @@map("service_packages")
+}
+
+// ─── Bookings ─────────────────────────────────────────────────────────────────
+
+model Booking {
+  id                  String        @id @default(cuid())
+  ref                 String        @unique
+  customerProfileId   String?
+  customerName        String
+  customerPhone       String
+  serviceItemId       String?
+  selectedPackageId   String?
+  serviceNameSnapshot String
+  addressLine1        String
+  suburb              String?
+  city                String?
+  notes               String?
+  pricingSnapshotJson Json?
+  slotIso             String
+  status              BookingStatus @default(DRAFT)
+  cancelReason        String?
+  amendedAt           DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  shopId              String
+  shop                Shop          @relation(fields: [shopId], references: [id])
+
+  serviceItem         ServiceItem?  @relation(fields: [serviceItemId], references: [id])
+  selectedPackage     ServicePackage? @relation(fields: [selectedPackageId], references: [id])
+  jobCards            JobCard[]
+  invoices            Invoice[]
+  ratings             Rating[]
+
+  @@index([shopId])
+  @@index([customerPhone])
+  @@index([status])
+  @@index([selectedPackageId])
+  @@map("bookings")
+}
+
+// ─── Job Cards ────────────────────────────────────────────────────────────────
+
+model JobCard {
+  id                   String        @id @default(cuid())
+  ref                  String        @unique
+  bookingId            String
+  bookingRef           String
+  assignedMechanicId   String?
+  slotIso              String
+  customerName         String
+  customerPhone        String
+  addressLine1         String
+  suburb               String?
+  city                 String?
+  serviceItemId        String?
+  serviceName          String
+  durationMinsSnapshot Int
+  status               JobCardStatus @default(SCHEDULED)
+  checklistJson        Json          @default("{}")
+  completionJson       Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  shopId               String
+  shop                 Shop          @relation(fields: [shopId], references: [id])
+
+  booking              Booking       @relation(fields: [bookingId], references: [id])
+  serviceItem          ServiceItem?  @relation(fields: [serviceItemId], references: [id])
+  notes                JobCardNote[]
+  parts                JobCardPart[]
+  additionalCharges    JobCardAdditionalCharge[]
+  invoices             Invoice[]
+
+  @@index([shopId])
+  @@index([assignedMechanicId, slotIso])
+  @@index([bookingId])
+  @@index([status])
+  @@map("job_cards")
+}
+
+model JobCardNote {
+  id              String   @id @default(cuid())
+  jobCardId       String
+  authorProfileId String?
+  text            String
+  createdAt       DateTime @default(now())
+
+  jobCard         JobCard  @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+
+  @@index([jobCardId])
+  @@map("job_card_notes")
+}
+
+model JobCardPart {
+  id             String  @id @default(cuid())
+  jobCardId      String
+  location       String?
+  name           String
+  brand          String?
+  qty            Int     @default(1)
+  unitPriceCents Int?
+
+  jobCard        JobCard @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+
+  @@index([jobCardId])
+  @@map("job_card_parts")
+}
+
+model JobCardAdditionalCharge {
+  id          String     @id @default(cuid())
+  jobCardId   String
+  name        String
+  amountCents Int
+  type        ChargeType @default(ADDITIONAL)
+
+  jobCard     JobCard    @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+
+  @@index([jobCardId])
+  @@map("job_card_additional_charges")
+}
+
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id                String        @id @default(cuid())
+  ref               String        @unique
+  jobCardId         String
+  bookingId         String
+  bookingRef        String
+  customerName      String
+  customerPhone     String
+  issuedByProfileId String
+  status            InvoiceStatus @default(ISSUED)
+  subtotalCents     Int
+  totalCents        Int
+  issuedAt          DateTime      @default(now())
+
+  shopId            String
+  shop              Shop          @relation(fields: [shopId], references: [id])
+
+  jobCard           JobCard       @relation(fields: [jobCardId], references: [id])
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+  lineItems         InvoiceLineItem[]
+
+  @@index([shopId])
+  @@index([jobCardId])
+  @@index([bookingId])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String          @id @default(cuid())
+  invoiceId   String
+  label       String
+  amountCents Int
+  qty         Int             @default(1)
+  type        InvoiceLineType @default(LABOUR)
+
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+// ─── Bikes ────────────────────────────────────────────────────────────────────
+
+model Bike {
+  id                 String   @id @default(cuid())
+  customerProfileId  String
+  bikeType           BikeType @default(OTHER)
+  brand              String
+  model              String?
+  drivetrainType     String?
+  brakeType          String?
+  eBike              Boolean  @default(false)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  customer           Profile  @relation(fields: [customerProfileId], references: [id])
+
+  @@index([customerProfileId])
+  @@map("bikes")
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+model ChatThread {
+  id                String        @id @default(cuid())
+  customerProfileId String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  customer          Profile       @relation(fields: [customerProfileId], references: [id])
+  messages          ChatMessage[]
+
+  @@index([customerProfileId])
+  @@map("chat_threads")
+}
+
+model ChatMessage {
+  id          String          @id @default(cuid())
+  threadId    String
+  role        ChatMessageRole
+  text        String
+  createdAt   DateTime        @default(now())
+
+  thread      ChatThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("chat_messages")
+}
+
+// ─── Ratings ──────────────────────────────────────────────────────────────────
+
+model Rating {
+  id                String   @id @default(cuid())
+  bookingId         String
+  customerProfileId String
+  rating            Int
+  comment           String?
+  createdAt         DateTime @default(now())
+
+  booking           Booking  @relation(fields: [bookingId], references: [id])
+  customer          Profile  @relation(fields: [customerProfileId], references: [id])
+
+  @@unique([bookingId])
+  @@map("ratings")
+}
+
+// ─── Support Tickets ─────────────────────────────────────────────────────────
+
+enum SupportTicketCategory {
+  PAYMENT
+  CANCELLATION
+  GENERAL
+  COMPLAINT
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id          String                  @id @default(cuid())
+  subject     String
+  description String
+  category    SupportTicketCategory
+  priority    SupportTicketPriority   @default(NORMAL)
+  status      SupportTicketStatus     @default(OPEN)
+  bookingId   String?
+  assigneeId  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  shopId      String
+  shop        Shop                    @relation(fields: [shopId], references: [id])
+  notes       SupportTicketNote[]
+
+  @@index([shopId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model SupportTicketNote {
+  id         String        @id @default(cuid())
+  ticketId   String
+  authorName String
+  text       String
+  createdAt  DateTime      @default(now())
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("support_ticket_notes")
+}
+
+// ─── Admin / Config ───────────────────────────────────────────────────────────
+
+model PricingRule {
+  id                     String   @id @default(cuid())
+  calloutFeeCents        Int      @default(25000)
+  platformFeeCents       Int      @default(1500)
+  platformFeePercentBps  Int?
+  partsMarkupBps         Int      @default(1000)
+  travelBandRulesJson    Json
+  afterHoursEnabled      Boolean  @default(false)
+  afterHoursSurchargeBps Int      @default(1500)
+  effectiveFrom          DateTime @default(now())
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  shopId                 String
+  shop                   Shop     @relation(fields: [shopId], references: [id])
+
+  @@index([shopId])
+  @@index([isActive, effectiveFrom])
+  @@map("pricing_rules")
+}
+
+model AvailabilityBlock {
+  id          String   @id @default(cuid())
+  date        DateTime
+  reason      String?
+  isEmergency Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id])
+
+  @@index([shopId])
+  @@index([date])
+  @@map("availability_blocks")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id])
+
+  @@index([shopId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model AuditEvent {
+  id             String         @id @default(cuid())
+  occurredAt     DateTime       @default(now())
+  recordedAt     DateTime       @default(now())
+  eventName      String
+  eventCategory  String
+  severity       AuditSeverity  @default(INFO)
+  outcome        AuditOutcome   @default(SUCCESS)
+  actorType      AuditActorType @default(USER)
+  actorId        String?
+  actorDisplay   String?
+  actorRole      String?
+  targetType     String?
+  targetId       String?
+  targetDisplay  String?
+  action         String
+  subaction      String?
+  reasonCode     String?
+  reasonText     String?
+  beforeJson     Json?
+  afterJson      Json?
+  changedFields  String[]
+  contextJson    Json?
+  requestId      String?
+  traceId        String?
+  spanId         String?
+  sessionId      String?
+  ipAddress      String?
+  userAgent      String?
+  deviceId       String?
+  channel        String?
+  route          String?
+  httpMethod     String?
+  tenantId       String?
+  environment    String
+  serviceName    String
+  serviceVersion String?
+  isSensitive    Boolean        @default(false)
+  retentionClass String         @default("standard")
+
+  shopId         String?
+  shop           Shop?          @relation(fields: [shopId], references: [id])
+
+  @@index([occurredAt])
+  @@index([shopId, occurredAt])
+  @@index([actorType, actorId, occurredAt])
+  @@index([targetType, targetId, occurredAt])
+  @@index([eventName])
+  @@index([outcome])
+  @@index([requestId])
+  @@index([traceId])
+  @@map("audit_events")
+}
+
+// ─── Leads ───────────────────────────────────────────────────────────────────
+
+model Lead {
+  id          String   @id @default(uuid())
+  name        String
+  email       String
+  phone       String?
+  company     String?
+  formType    String
+  message     String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  status      String   @default("NEW")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("leads")
+}

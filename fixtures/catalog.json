@@ -1,0 +1,48 @@
+{
+  "services": [
+    {
+      "id": "svc-minor",
+      "name": "Minor Service",
+      "description": "Basic safety check and tune-up for city rides.",
+      "durationMinutes": 60,
+      "priceCents": 45000
+    },
+    {
+      "id": "svc-standard",
+      "name": "Standard Service",
+      "description": "Full safety inspection with drivetrain clean.",
+      "durationMinutes": 90,
+      "priceCents": 65000
+    },
+    {
+      "id": "svc-major",
+      "name": "Major Service",
+      "description": "Deep clean, adjustments, and parts inspection.",
+      "durationMinutes": 120,
+      "priceCents": 95000
+    }
+  ],
+  "packages": [
+    {
+      "id": "pkg-commuter",
+      "name": "Commuter Refresh",
+      "description": "Minor service + brake tune.",
+      "durationMinutes": 75,
+      "priceCents": 60000
+    },
+    {
+      "id": "pkg-weekend",
+      "name": "Weekend Warrior",
+      "description": "Standard service + drivetrain clean.",
+      "durationMinutes": 105,
+      "priceCents": 80000
+    },
+    {
+      "id": "pkg-performance",
+      "name": "Performance Reset",
+      "description": "Major service + inspection checklist.",
+      "durationMinutes": 150,
+      "priceCents": 110000
+    }
+  ]
+}

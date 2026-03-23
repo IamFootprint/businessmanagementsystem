@@ -1,0 +1,102 @@
+
+> @cycledesk/web@0.1.0 build /Users/shimane/Desktop/MobileApps/CycleDesk/cycledesk-st/apps/web
+> next build
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ⚠ For production Image Optimization with Next.js, the optional 'sharp' package is strongly recommended. Run 'npm i sharp', and Next.js will use it automatically for Image Optimization.
+Read more: https://nextjs.org/docs/messages/sharp-missing-in-production
+ ⚠ For production Image Optimization with Next.js, the optional 'sharp' package is strongly recommended. Run 'npm i sharp', and Next.js will use it automatically for Image Optimization.
+Read more: https://nextjs.org/docs/messages/sharp-missing-in-production
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+
+./app/admin/audit/page.tsx
+183:6  Warning: React Hook useEffect has a missing dependency: 'loadList'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/admin/bookings/[id]/page.tsx
+64:6  Warning: React Hook useEffect has a missing dependency: 'loadBooking'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/admin/bookings/page.tsx
+60:6  Warning: React Hook useEffect has a missing dependency: 'searchQuery'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/admin/mechanics/page.tsx
+87:6  Warning: React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/admin/support/page.tsx
+106:6  Warning: React Hook useEffect has a missing dependency: 'loadTickets'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/app/bookings/[id]/page.tsx
+151:6  Warning: React Hook useEffect has missing dependencies: 'loadBooking' and 'loadRating'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/book/details/client.tsx
+142:6  Warning: React Hook useEffect has a missing dependency: 'loadCatalog'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/book/layout.tsx
+17:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/components/CustomerShell.tsx
+36:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/components/WorkspaceShell.tsx
+72:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/components/WorkspaceSidebar.tsx
+63:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/login/otp/page.tsx
+109:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/login/page.tsx
+57:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/mech/job/[jobCardId]/page.tsx
+187:6  Warning: React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/partner/onboarding/page.tsx
+202:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/partner/page.tsx
+34:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/partner/pending/page.tsx
+18:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/partner/signup/otp/page.tsx
+78:5  Warning: React Hook useCallback has a missing dependency: 'router'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+119:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/partner/signup/page.tsx
+54:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/signup/complete/page.tsx
+84:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/signup/otp/page.tsx
+65:5  Warning: React Hook useCallback has a missing dependency: 'router'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+100:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/signup/page.tsx
+44:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+Failed to compile.
+
+./app/api/admin/analytics/route.ts:51:40
+Type error: Parameter 'b' implicitly has an 'any' type.
+
+[0m [90m 49 |[39m[0m
+[0m [90m 50 |[39m   [90m// Filter to period[39m[0m
+[0m[31m[1m>[22m[39m[90m 51 |[39m   [36mconst[39m bookings [33m=[39m allBookings[33m.[39mfilter((b) [33m=>[39m b[33m.[39mcreatedAtIso [33m>=[39m cutoffIso)[33m;[39m[0m
+[0m [90m    |[39m                                        [31m[1m^[22m[39m[0m
+[0m [90m 52 |[39m   [36mconst[39m invoices [33m=[39m allInvoices[33m.[39mfilter((inv) [33m=>[39m inv[33m.[39missuedAtIso [33m>=[39m cutoffIso)[33m;[39m[0m
+[0m [90m 53 |[39m   [36mconst[39m jobCards [33m=[39m allJobCards[33m.[39mfilter((jc) [33m=>[39m jc[33m.[39mslotIso [33m>=[39m cutoffIso)[33m;[39m[0m
+[0m [90m 54 |[39m   [36mconst[39m ratings [33m=[39m allRatings[33m.[39mfilter((r) [33m=>[39m r[33m.[39mcreatedAtIso [33m>=[39m cutoffIso)[33m;[39m[0m
+Next.js build worker exited with code: 1 and signal: null
+ ELIFECYCLE  Command failed with exit code 1.
