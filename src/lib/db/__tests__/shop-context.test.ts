@@ -56,41 +56,46 @@ describe('withShopContext', () => {
       return
     }
 
-    const booking = await prisma.booking.create({
-      data: {
-        shopId: shopB.id,
-        customerProfileId: profile.id,
-        customerName: 'Test Customer',
-        customerPhone: profile.phone,
-        serviceItemId: serviceItem.id,
-        addressLine1: '1 Test Street',
-        suburb: 'Testville',
-        city: 'Cape Town',
-        slotIso: new Date().toISOString(),
-        status: 'CONFIRMED',
-        pricingSnapshotJson: '{}'
+    let booking: Awaited<ReturnType<typeof prisma.booking.create>> | undefined
+    try {
+      booking = await prisma.booking.create({
+        data: {
+          shopId: shopB.id,
+          customerProfileId: profile.id,
+          customerName: 'Test Customer',
+          customerPhone: profile.phone,
+          serviceItemId: serviceItem.id,
+          addressLine1: '1 Test Street',
+          suburb: 'Testville',
+          city: 'Cape Town',
+          slotIso: new Date().toISOString(),
+          status: 'CONFIRMED',
+          pricingSnapshotJson: '{}'
+        }
+      })
+
+      // Act: read bookings as Shop A context
+      const resultAsShopA = await withShopContext(shopA.id, async (tx) => {
+        return tx.booking.findMany()
+      })
+
+      // Assert: Shop A cannot see Shop B's booking
+      const found = resultAsShopA.find((b) => b.id === booking.id)
+      expect(found).toBeUndefined()
+
+      // Verify Shop B can see its own booking (sanity check)
+      const resultAsShopB = await withShopContext(shopB.id, async (tx) => {
+        return tx.booking.findMany({ where: { id: booking!.id } })
+      })
+      expect(resultAsShopB).toHaveLength(1)
+      expect(resultAsShopB[0].id).toBe(booking.id)
+    } finally {
+      // Cleanup always runs, even if an assertion throws
+      if (booking) {
+        await prisma.booking.delete({ where: { id: booking.id } })
       }
-    })
-
-    // Act: read bookings as Shop A context
-    const resultAsShopA = await withShopContext(shopA.id, async (tx) => {
-      return tx.booking.findMany()
-    })
-
-    // Assert: Shop A cannot see Shop B's booking
-    const found = resultAsShopA.find((b) => b.id === booking.id)
-    expect(found).toBeUndefined()
-
-    // Verify Shop B can see its own booking (sanity check)
-    const resultAsShopB = await withShopContext(shopB.id, async (tx) => {
-      return tx.booking.findMany({ where: { id: booking.id } })
-    })
-    expect(resultAsShopB).toHaveLength(1)
-    expect(resultAsShopB[0].id).toBe(booking.id)
-
-    // Cleanup
-    await prisma.booking.delete({ where: { id: booking.id } })
-    await prisma.profile.delete({ where: { id: profile.id } })
-    await prisma.shop.deleteMany({ where: { id: { in: [shopA.id, shopB.id] } } })
+      await prisma.profile.delete({ where: { id: profile.id } })
+      await prisma.shop.deleteMany({ where: { id: { in: [shopA.id, shopB.id] } } })
+    }
   })
 })

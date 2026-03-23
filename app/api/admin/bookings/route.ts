@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/guard";
 import { BookingsRepo } from "@/src/lib/store";
-import { withShopContext } from "@/src/lib/db/shop-context";
 
 export async function GET(req: Request) {
   const auth = await requireAdmin();
@@ -20,11 +19,7 @@ export async function GET(req: Request) {
   ]);
   const status = rawStatus && allowedStatuses.has(rawStatus) ? rawStatus : undefined;
 
-  // withShopContext sets SET LOCAL app.current_shop_id for RLS enforcement on all
-  // tenant-scoped queries within this request, regardless of store mode.
-  const bookings = await withShopContext(auth.shopId!, () =>
-    BookingsRepo.list(auth.shopId!)
-  );
+  const bookings = await BookingsRepo.list(auth.shopId!);
   const filtered = bookings.filter((booking) => {
     if (status && booking.status !== status) return false;
 
