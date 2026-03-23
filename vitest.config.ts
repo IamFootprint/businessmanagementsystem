@@ -13,4 +13,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "."),
     },
   },
+  oxc: {
+    tsconfigPath: path.resolve(__dirname, "tsconfig.json"),
+  },
 });
