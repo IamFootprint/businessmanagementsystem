@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRole } from "@/src/lib/auth/localSession";
 import { ChatThreadsRepo, ServiceItemsRepo } from "@/src/lib/store";
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
 
   // Kill switch check
   if (await isKillSwitchActive(KILL_SWITCHES.CHAT)) {
-    return tooManyRequests("SERVICE_UNAVAILABLE", "Chat is temporarily unavailable.")
+    return NextResponse.json({ error: 'Chat is temporarily unavailable' }, { status: 503 })
   }
 
   // Rate limit: 20 chat messages per user per hour
