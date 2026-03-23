@@ -1,14 +1,13 @@
 import { z } from "zod";
 import { normalizePhone, shouldRequireE164, validateE164, isAllowedPhone } from "@/lib/auth/phone";
 import { rateLimit, getClientIp, RATE_LIMIT_WINDOW_MS } from "@/lib/auth/rate-limit";
-import { NextResponse } from "next/server";
 import { isKillSwitchActive, KILL_SWITCHES } from "@/src/lib/db/feature-flags";
 import {
   getMaxRequestsPerHour,
   getMaxAttemptsPerIpPerHour,
   isStaticOtpEnabled
 } from "@/lib/auth/config";
-import { ok, notFound, tooManyRequests } from "@/lib/api/responses";
+import { ok, notFound, tooManyRequests, serviceUnavailable } from "@/lib/api/responses";
 import { logAuditEvent } from "@/lib/audit/service";
 
 const schema = z.object({
@@ -58,7 +57,7 @@ async function logOtpRequested(request: Request, payload: {
 
 export async function POST(request: Request) {
   if (await isKillSwitchActive(KILL_SWITCHES.OTP_AUTH)) {
-    return NextResponse.json({ error: 'Authentication is temporarily unavailable' }, { status: 503 })
+    return serviceUnavailable('Authentication is temporarily unavailable')
   }
 
   if (!isStaticOtpEnabled()) {

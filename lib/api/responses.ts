@@ -99,6 +99,10 @@ export function tooManyRequests(
   return response;
 }
 
+export function serviceUnavailable(message = 'Service temporarily unavailable') {
+  return failure(503, 'SERVICE_UNAVAILABLE', message)
+}
+
 export function serverError(code: string, message: string, hint?: string, error?: unknown) {
   const requestId = buildRequestId();
   console.error(`[api:${requestId}] ${code}: ${message}`, error);
