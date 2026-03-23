@@ -358,6 +358,8 @@ model Invoice {
   subtotalCents     Int
   totalCents        Int
   issuedAt          DateTime      @default(now())
+  paidAt            DateTime?
+  providerReference String?       @unique
 
   shopId            String
   shop              Shop          @relation(fields: [shopId], references: [id])
