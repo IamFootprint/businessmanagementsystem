@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { withShopContext } from "@/src/lib/db/shop-context";
 import { requireAdmin } from "@/lib/admin/guard";
 import { logAudit } from "@/lib/admin/audit";
 import { ok, badRequest, notFound } from "@/lib/api/responses";
@@ -56,7 +57,9 @@ export async function GET() {
   if (!resolvedShopId) {
     return notFound("SHOP_NOT_FOUND", "Shop settings missing.");
   }
-  const shop = await prisma.shop.findUnique({ where: { id: resolvedShopId } });
+  const shop = await withShopContext(resolvedShopId, (tx) =>
+    tx.shop.findUnique({ where: { id: resolvedShopId } })
+  );
   if (!shop) {
     return notFound("SHOP_NOT_FOUND", "Shop settings missing.");
   }
@@ -82,13 +85,15 @@ export async function PUT(req: Request) {
   if (!resolvedShopId) {
     return notFound("SHOP_NOT_FOUND", "Shop settings missing.");
   }
-  const updated = await prisma.shop.update({
-    where: { id: resolvedShopId },
-    data: {
-      ...parsed.data,
-      themeTokens: normalizeThemeTokens(parsed.data.themeTokens)
-    }
-  });
+  const updated = await withShopContext(resolvedShopId, (tx) =>
+    tx.shop.update({
+      where: { id: resolvedShopId },
+      data: {
+        ...parsed.data,
+        themeTokens: normalizeThemeTokens(parsed.data.themeTokens)
+      }
+    })
+  );
 
   await logAudit({
     actor: auth.phone,
