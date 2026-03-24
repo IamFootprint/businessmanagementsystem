@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const result = await provider.createCheckout({
     shopId,
     invoiceId,
-    amountCents: Math.round(invoice.totalAmount * 100),
+    amountCents: invoice.totalCents,
     currency: 'ZAR',
     successUrl: `${baseUrl}/admin/billing?invoiceId=${invoiceId}&status=success`,
     cancelUrl: `${baseUrl}/admin/billing?invoiceId=${invoiceId}&status=cancelled`,
