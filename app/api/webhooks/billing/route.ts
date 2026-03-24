@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPaymentProvider } from '@/lib/payments/factory'
-import { withShopContext } from '@/lib/db/shop-context'
+import { getPaymentProvider } from '@/src/lib/payments/factory'
+import { withShopContext } from '@/src/lib/db/shop-context'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(req: NextRequest) {
