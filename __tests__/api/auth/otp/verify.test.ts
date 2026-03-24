@@ -50,6 +50,17 @@ vi.mock("@/src/lib/store", () => ({
   createSession: vi.fn(() => Promise.resolve({ id: "sess_123" })),
   getDefaultShopId: vi.fn(() => Promise.resolve("shop_1")),
   getProfileForSession: vi.fn(() => Promise.resolve(null)),
+  ensureJourneyProfiles: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock("@/src/lib/auth/supabase", () => ({
+  isSupabaseConfigured: vi.fn(() => false),
+  supabaseAdmin: {
+    auth: {
+      verifyOtp: vi.fn(() => Promise.resolve({ data: { user: null }, error: null })),
+      signInWithOtp: vi.fn(() => Promise.resolve({ data: {}, error: null })),
+    },
+  },
 }));
 
 vi.mock("@/src/lib/auth/roles", () => ({
@@ -126,15 +137,15 @@ describe("POST /api/auth/otp/verify", () => {
     expect(body.error.code).toBe("INVALID_OTP");
   });
 
-  it("returns 404 when static OTP is disabled", async () => {
+  it("returns 401 when static OTP is disabled and Supabase is not configured", async () => {
     vi.mocked(isStaticOtpEnabled).mockReturnValue(false);
 
     const res = await POST(makeRequest({ phone: "+27110000001", otp: "246824" }));
     const body = await res.json();
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     expect(body.ok).toBe(false);
-    expect(body.error.code).toBe("NOT_FOUND");
+    expect(body.error.code).toBe("INVALID_OTP");
   });
 
   it("returns 429 when IP rate limit is exceeded", async () => {

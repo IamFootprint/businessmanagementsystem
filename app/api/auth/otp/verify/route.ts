@@ -12,7 +12,7 @@ import { resolveWorkshopRole } from "@/src/lib/auth/roles";
 import { ProfilesRepo, ShopRepo, createSession, getDefaultShopId, ensureJourneyProfiles } from "@/src/lib/store";
 import { getRoleHomePath } from "@/src/lib/auth/roleRouting";
 import type { ProfileRecord } from "@/src/lib/store";
-import { conflict, notFound, tooManyRequests, unauthorized } from "@/lib/api/responses";
+import { conflict, tooManyRequests, unauthorized } from "@/lib/api/responses";
 import { matchesDeterministicDevOtp } from "@/lib/auth/devOtp";
 import { logAuditEvent } from "@/lib/audit/service";
 
@@ -125,11 +125,6 @@ function buildAuthResponse(params: {
 }
 
 export async function POST(request: Request) {
-  if (!isStaticOtpEnabled()) {
-    await logOtpVerified(request, { outcome: "failure", reasonCode: "OTP_DISABLED" });
-    return notFound("NOT_FOUND", "Not found.");
-  }
-
   const ip = getClientIp(request.headers);
   const ipCheck = rateLimit(`otp-verify:ip:${ip}`, getMaxAttemptsPerIpPerHour(), RATE_LIMIT_WINDOW_MS);
   if (!ipCheck.allowed) {
@@ -171,12 +166,34 @@ export async function POST(request: Request) {
     }
     return invalidOtpResponse("otp_verify_invalid_phone", { phone });
   }
-  if (!matchesDeterministicDevOtp(phone, parsed.data.otp)) {
-    await logOtpVerified(request, { phone, intent, outcome: "failure", reasonCode: "OTP_MISMATCH" });
-    if (intent === "LOGIN") {
-      await logOtpVerified(request, { eventName: "auth.login.failure", phone, intent, outcome: "failure", reasonCode: "OTP_MISMATCH" });
+  // OTP verification: Supabase (production) or deterministic dev code
+  if (!isStaticOtpEnabled()) {
+    const { supabaseAdmin, isSupabaseConfigured } = await import('@/src/lib/auth/supabase')
+    if (!isSupabaseConfigured()) {
+      // Supabase not configured — fail closed
+      await logOtpVerified(request, { phone, intent, outcome: "failure", reasonCode: "OTP_PROVIDER_UNAVAILABLE" })
+      return invalidOtpResponse("otp_supabase_not_configured", { phone })
     }
-    return invalidOtpResponse("otp_verify_code_mismatch", { phone });
+    const { data, error } = await supabaseAdmin.auth.verifyOtp({
+      phone,
+      token: parsed.data.otp,
+      type: 'sms',
+    })
+    if (error || !data.user) {
+      await logOtpVerified(request, { phone, intent, outcome: "failure", reasonCode: "OTP_MISMATCH" })
+      if (intent === "LOGIN") {
+        await logOtpVerified(request, { eventName: "auth.login.failure", phone, intent, outcome: "failure", reasonCode: "OTP_MISMATCH" })
+      }
+      return invalidOtpResponse("otp_verify_code_mismatch", { phone })
+    }
+  } else {
+    if (!matchesDeterministicDevOtp(phone, parsed.data.otp)) {
+      await logOtpVerified(request, { phone, intent, outcome: "failure", reasonCode: "OTP_MISMATCH" })
+      if (intent === "LOGIN") {
+        await logOtpVerified(request, { eventName: "auth.login.failure", phone, intent, outcome: "failure", reasonCode: "OTP_MISMATCH" })
+      }
+      return invalidOtpResponse("otp_verify_code_mismatch", { phone })
+    }
   }
 
   // Ensure dev/test profiles are seeded (no-op in production with real DB)

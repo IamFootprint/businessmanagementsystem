@@ -7,7 +7,7 @@ import {
   getMaxAttemptsPerIpPerHour,
   isStaticOtpEnabled
 } from "@/lib/auth/config";
-import { ok, notFound, tooManyRequests, serviceUnavailable } from "@/lib/api/responses";
+import { ok, tooManyRequests, serviceUnavailable } from "@/lib/api/responses";
 import { logAuditEvent } from "@/lib/audit/service";
 
 const schema = z.object({
@@ -60,13 +60,6 @@ export async function POST(request: Request) {
     return serviceUnavailable('Authentication is temporarily unavailable')
   }
 
-  if (!isStaticOtpEnabled()) {
-    await logOtpRequested(request, { outcome: "failure", reasonCode: "OTP_DISABLED" });
-    const response = notFound("NOT_FOUND", "Not found.");
-    response.headers.set("x-request-id", logInvalidOtp("otp_request_disabled", {}));
-    return response;
-  }
-
   const ip = getClientIp(request.headers);
   const ipCheck = rateLimit(`otp-request:ip:${ip}`, getMaxAttemptsPerIpPerHour(), RATE_LIMIT_WINDOW_MS);
   if (!ipCheck.allowed) {
@@ -115,6 +108,21 @@ export async function POST(request: Request) {
       requested: true,
       message: "If your account is eligible, you will receive an OTP."
     });
+  }
+
+  // Trigger SMS OTP via Supabase when not using static dev codes
+  if (!isStaticOtpEnabled()) {
+    const { supabaseAdmin, isSupabaseConfigured } = await import('@/src/lib/auth/supabase')
+    if (isSupabaseConfigured()) {
+      const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
+        phone: normalized,
+        options: { shouldCreateUser: true },
+      })
+      if (otpError) {
+        console.error('[auth] Supabase OTP request error:', otpError.message)
+        // Return ok anyway — never leak whether phone is registered
+      }
+    }
   }
 
   await logOtpRequested(request, { phone: normalized, intent, outcome: "success" });

@@ -22,6 +22,15 @@ vi.mock("@/lib/auth/phone", () => ({
   isAllowedPhone: vi.fn((phone: string) => phone.startsWith("+27")),
 }));
 
+vi.mock("@/src/lib/auth/supabase", () => ({
+  isSupabaseConfigured: vi.fn(() => false),
+  supabaseAdmin: {
+    auth: {
+      signInWithOtp: vi.fn(() => Promise.resolve({ data: {}, error: null })),
+    },
+  },
+}));
+
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { POST } from "@/app/api/auth/otp/request/route";
@@ -60,15 +69,15 @@ describe("POST /api/auth/otp/request", () => {
     expect(body.data.message).toContain("eligible");
   });
 
-  it("returns 404 when static OTP is disabled", async () => {
+  it("returns 200 when static OTP is disabled (Supabase path, not configured)", async () => {
     vi.mocked(isStaticOtpEnabled).mockReturnValue(false);
 
     const res = await POST(makeRequest({ phone: "+27110000001" }));
     const body = await res.json();
 
-    expect(res.status).toBe(404);
-    expect(body.ok).toBe(false);
-    expect(body.error.code).toBe("NOT_FOUND");
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.data.requested).toBe(true);
   });
 
   it("returns 429 when IP rate limit is exceeded", async () => {
