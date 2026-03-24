@@ -93,5 +93,8 @@
   "prisma": {
     "schema": "prisma/schema.prisma",
     "seed": "node prisma/seed.js"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "prisma"]
   }
 }
