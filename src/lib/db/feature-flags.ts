@@ -10,6 +10,7 @@ export const KILL_SWITCHES = {
   CHAT: 'kill.chat',                     // Disable customer chat
   ADMIN_WRITES: 'kill.admin_writes',     // Block all admin mutations (read-only mode)
   NOTIFICATIONS: 'kill.notifications',   // Block email/SMS sending
+  BILLING: 'kill.billing',               // Disable billing/checkout
 } as const
 
 export type KillSwitchName = typeof KILL_SWITCHES[keyof typeof KILL_SWITCHES]
