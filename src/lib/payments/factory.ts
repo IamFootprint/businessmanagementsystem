@@ -2,6 +2,7 @@ import type { PaymentProvider } from './provider'
 import { PaystackAdapter } from './paystack'
 import { PayFastAdapter } from './payfast'
 import { FastSpringAdapter } from './fastspring'
+import { NoopPaymentAdapter } from './noop'
 
 let _cachedProvider: PaymentProvider | null = null
 let _cachedName: string | null = null
@@ -25,10 +26,13 @@ export function getPaymentProvider(): PaymentProvider {
     case 'fastspring':
       provider = new FastSpringAdapter()
       break
+    case 'none':
+      provider = new NoopPaymentAdapter()
+      break
     default:
       throw new Error(
         `Unknown payment provider: "${name}". ` +
-        'Set PAYMENT_PROVIDER to one of: paystack, payfast, fastspring'
+        'Set PAYMENT_PROVIDER to one of: paystack, payfast, fastspring, none'
       )
   }
 

@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@cycledesk/shared"],
   outputFileTracingIncludes: {
     '/**': ['./fixtures/**/*.json'],
   },
