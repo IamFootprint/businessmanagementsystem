@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 import { prisma } from '@bms/db'
-import type { AppEnv } from '../types'
+import type { AppEnv, SessionUser } from '../types'
 
 export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const auth = c.req.header('Authorization')
@@ -13,11 +13,19 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     include: { user: true },
   })
   if (!session || session.expiresAt < new Date()) {
-    if (session) await prisma.session.delete({ where: { id: session.id } })
+    if (session) {
+      prisma.session.delete({ where: { id: session.id } }).catch(() => undefined)
+    }
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash: _, ...safeUser } = session.user
-  c.set('user', safeUser)
+  const sessionUser: SessionUser = {
+    id: session.user.id,
+    tenantId: session.user.tenantId,
+    email: session.user.email,
+    name: session.user.name,
+    role: session.user.role,
+    active: session.user.active,
+  }
+  c.set('user', sessionUser)
   await next()
 }

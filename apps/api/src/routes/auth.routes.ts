@@ -5,6 +5,6 @@ import { sessionMiddleware } from '../middleware/session.middleware'
 
 export function registerAuthRoutes(app: Hono<AppEnv>) {
   app.post('/auth/login', login)
-  app.post('/auth/logout', logout)
+  app.post('/auth/logout', sessionMiddleware, logout)
   app.get('/auth/me', sessionMiddleware, getMe)
 }
