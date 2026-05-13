@@ -61,6 +61,13 @@ describe('buildReport', () => {
     expect(report.uncategorisedExpenseCents).toBe(5000)
     expect(report.expenseByCategory).toHaveLength(0)
   })
+
+  it('tracks uncategorised revenue separately', () => {
+    const noCategory = { ...baseTx, id: 't5', transactionType: 'REVENUE' as const, direction: 'CREDIT' as const, category: null }
+    const report = buildReport(BUSINESS_ID, YEAR, MONTH, [noCategory])
+    expect(report.uncategorisedRevenueCents).toBe(5000)
+    expect(report.revenueByCategory).toHaveLength(0)
+  })
 })
 
 describe('reportToCsv', () => {
@@ -68,7 +75,7 @@ describe('reportToCsv', () => {
     const report = buildReport(BUSINESS_ID, YEAR, MONTH, [baseTx])
     const csv = reportToCsv(report, [baseTx])
     expect(typeof csv).toBe('string')
-    expect(csv.split('\n')[0]).toContain('Date')
+    expect(csv.split('\n')[0]).toBe('Date,Description,Amount (ZAR),Category,Direction,Status')
   })
 
   it('includes one data row per transaction', () => {
