@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd ../.. && pnpm --filter @bms/db generate && pnpm --filter @bms/api build",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+}
