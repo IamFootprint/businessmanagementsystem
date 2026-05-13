@@ -79,13 +79,18 @@ export async function listReceipts(c: Context<AppEnv>) {
       await prisma.business.findMany({ where: { tenantId: user.tenantId }, select: { id: true } })
     ).map((b) => b.id)
 
+    // Include receipts assigned to a tenant business OR unassigned (null) — field uploads arrive without a businessId
     const where: Record<string, unknown> = {
-      hintBusinessId: { in: tenantBusinessIds },
+      OR: [
+        { hintBusinessId: { in: tenantBusinessIds } },
+        { hintBusinessId: null },
+      ],
     }
     if (matchStatus) where.matchStatus = matchStatus
     if (businessId) {
       if (!tenantBusinessIds.includes(businessId)) return c.json({ error: 'Not found' }, 404)
       where.hintBusinessId = businessId
+      delete where.OR
     }
 
     const receipts = await prisma.receipt.findMany({
