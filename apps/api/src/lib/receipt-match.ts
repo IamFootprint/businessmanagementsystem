@@ -20,6 +20,9 @@ export type MatchResult = {
 
 const MS_PER_DAY = 86_400_000
 
+/** Bank posting lag: receipts often appear 1–3 days after the transaction date. */
+const DATE_TOLERANCE_DAYS = 3
+
 function dayDiff(a: Date, b: Date): number {
   return Math.round(Math.abs(a.getTime() - b.getTime()) / MS_PER_DAY)
 }
@@ -30,7 +33,7 @@ export function scoreReceipt(hint: ReceiptHint, tx: TransactionCandidate): Match
   if (hint.hintAmountCents !== null && hint.hintAmountCents === tx.amountCents) {
     score++
   }
-  if (hint.hintDate !== null && dayDiff(hint.hintDate, tx.date) <= 3) {
+  if (hint.hintDate !== null && dayDiff(hint.hintDate, tx.date) <= DATE_TOLERANCE_DAYS) {
     score++
   }
   if (hint.hintSupplier !== null && tx.cleanDescription.toUpperCase().includes(hint.hintSupplier.toUpperCase())) {
@@ -43,9 +46,13 @@ export function scoreReceipt(hint: ReceiptHint, tx: TransactionCandidate): Match
   return { transactionId: tx.id, score, matchStatus }
 }
 
-export function rankCandidates(hint: ReceiptHint, candidates: TransactionCandidate[]): MatchResult[] {
+export function rankCandidates(
+  hint: ReceiptHint,
+  candidates: TransactionCandidate[],
+  minScore = 2,
+): MatchResult[] {
   return candidates
     .map((tx) => scoreReceipt(hint, tx))
-    .filter((r) => r.score >= 2)
-    .sort((a, b) => b.score - a.score)
+    .filter((r) => r.score >= minScore)
+    .sort((a, b) => b.score - a.score || a.transactionId.localeCompare(b.transactionId))
 }

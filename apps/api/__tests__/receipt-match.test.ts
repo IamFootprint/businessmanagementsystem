@@ -63,20 +63,20 @@ describe('rankCandidates', () => {
     { id: 'tx-score2', amountCents: 5000, date: new Date('2024-01-15'), cleanDescription: 'WOOLWORTHS STORE' },
     { id: 'tx-score3', amountCents: 5000, date: new Date('2024-01-15'), cleanDescription: 'PICK N PAY STORES PTY LTD' },
   ]
-  const hint: ReceiptHint = {
+  const rankHint: ReceiptHint = {
     hintAmountCents: 5000,
     hintDate: new Date('2024-01-15'),
     hintSupplier: 'pick n pay',
   }
 
   it('filters out candidates with score < 2', () => {
-    const results = rankCandidates(hint, candidates)
+    const results = rankCandidates(rankHint, candidates)
     const ids = results.map((r) => r.transactionId)
     expect(ids).not.toContain('tx-score1')
   })
 
   it('sorts results descending by score', () => {
-    const results = rankCandidates(hint, candidates)
+    const results = rankCandidates(rankHint, candidates)
     expect(results[0].transactionId).toBe('tx-score3') // score 3
     expect(results[1].transactionId).toBe('tx-score2') // score 2 (amount + date, not supplier)
   })
