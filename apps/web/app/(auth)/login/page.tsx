@@ -29,8 +29,9 @@ export default function LoginPage() {
         <form action={formAction} className="space-y-4">
           {state?.error && (
             <div
+              role="alert"
               className="rounded-md px-3 py-2 text-sm"
-              style={{ backgroundColor: '#fef2f2', color: 'var(--color-destructive)' }}
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 10%, white)', color: 'var(--color-destructive)' }}
             >
               {state.error}
             </div>
