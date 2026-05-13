@@ -93,6 +93,26 @@ async function processRow(
 
     return { action: 'IMPORTED' }
   } catch (err) {
+    // P2002 = unique constraint violation: another concurrent import already inserted this row
+    const isPrismaUniqueError = err instanceof Error &&
+      'code' in err && (err as Record<string, unknown>)['code'] === 'P2002'
+
+    if (isPrismaUniqueError) {
+      // Find the transaction that won the race and record as duplicate
+      const existingTxn = await prisma.transaction.findUnique({ where: { duplicateHash } })
+      await prisma.statementImportRow.create({
+        data: {
+          importId,
+          rowNumber: row.csvRowNumber,
+          rawJson: row as object,
+          duplicateHash,
+          action: 'DUPLICATE_SKIPPED',
+          transactionId: existingTxn?.id ?? null,
+        },
+      })
+      return { action: 'DUPLICATE_SKIPPED' }
+    }
+
     const errorMessage = err instanceof Error ? err.message : String(err)
     await prisma.statementImportRow.create({
       data: {
@@ -136,11 +156,19 @@ export async function runImport(input: ImportInput): Promise<ImportSummary> {
   let duplicateCount = 0
   let errorCount = 0
 
-  for (const row of rows) {
-    const result = await processRow(row, statementImport.id, bankAccountId)
-    if (result.action === 'IMPORTED') importedCount++
-    else if (result.action === 'DUPLICATE_SKIPPED') duplicateCount++
-    else if (result.action === 'ERROR') errorCount++
+  try {
+    for (const row of rows) {
+      const result = await processRow(row, statementImport.id, bankAccountId)
+      if (result.action === 'IMPORTED') importedCount++
+      else if (result.action === 'DUPLICATE_SKIPPED') duplicateCount++
+      else if (result.action === 'ERROR') errorCount++
+    }
+  } catch (err) {
+    await prisma.statementImport.update({
+      where: { id: statementImport.id },
+      data: { importedCount, duplicateCount, errorCount, status: 'FAILED' },
+    })
+    throw err
   }
 
   const finalStatus: ImportStatus =

@@ -61,12 +61,14 @@ export function parseStandardBankCsv(csvText: string): ParseResult {
     const balanceRaw = record['Balance'] ?? ''
 
     if (desc.includes('OPENING BALANCE')) {
-      openingBalanceCents = parseCents(balanceRaw) || parseCents(amountRaw)
+      const obBal = parseCents(balanceRaw)
+      openingBalanceCents = obBal !== 0 ? obBal : parseCents(amountRaw)
       continue
     }
 
     if (desc.includes('CLOSING BALANCE')) {
-      closingBalanceCents = parseCents(balanceRaw) || parseCents(amountRaw)
+      const cbBal = parseCents(balanceRaw)
+      closingBalanceCents = cbBal !== 0 ? cbBal : parseCents(amountRaw)
       continue
     }
 
