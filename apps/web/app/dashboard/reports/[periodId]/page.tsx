@@ -16,8 +16,6 @@ type SnapshotData = {
 }
 type ReportResponse = { snapshot: SnapshotData }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-
 function fmt(cents: number) {
   return `R${(cents / 100).toFixed(2)}`
 }
@@ -30,9 +28,20 @@ export default async function ReportDetailPage({
   params: Promise<{ periodId: string }>
 }) {
   const { periodId } = await params
-  const { snapshot } = await apiRequestAuthenticated<ReportResponse>(
-    `/periods/${periodId}/report`
-  )
+
+  let snapshot: SnapshotData
+  try {
+    const response = await apiRequestAuthenticated<ReportResponse>(`/periods/${periodId}/report`)
+    snapshot = response.snapshot
+  } catch {
+    return (
+      <div>
+        <h1>Report</h1>
+        <p>Report not available. The period may not have been locked yet.</p>
+        <a href="/dashboard/reports">Back to reports</a>
+      </div>
+    )
+  }
 
   const title = `${MONTH_NAMES[snapshot.month - 1]} ${snapshot.year} Report`
 
@@ -90,7 +99,7 @@ export default async function ReportDetailPage({
         </>
       )}
 
-      <a href={`${API_BASE}/periods/${periodId}/export`} download>
+      <a href={`/api/periods/${periodId}/export`} download>
         Download CSV
       </a>
     </div>

@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import { prisma } from '@bms/db'
-import { verifyPassword } from '../lib/password'
+import { verifyPassword, DUMMY_HASH } from '../lib/password'
 import { randomBytes } from 'crypto'
 import type { AppEnv, SessionUser } from '../types'
 
@@ -28,7 +28,6 @@ export async function login(c: Context<AppEnv>) {
   }
 
   // Always run bcrypt to prevent timing attacks that distinguish missing/inactive accounts
-  const DUMMY_HASH = '$2b$12$invalidhashfortimingnXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
   const hashToVerify = dbUser?.active ? dbUser.passwordHash : DUMMY_HASH
   const valid = await verifyPassword(password, hashToVerify)
 

@@ -93,27 +93,29 @@ export async function applyRules(c: Context<AppEnv>) {
   if (matches.length === 0) return c.json({ applied: 0 })
 
   let applied = 0
-  for (const match of matches) {
-    try {
-      await prisma.transaction.update({
-        where: { id: match.transactionId },
-        data: {
-          ruleId: match.ruleId,
-          ...(match.categoryId !== null ? { categoryId: match.categoryId } : {}),
-          ...(match.supplierId !== null ? { supplierId: match.supplierId } : {}),
-          ...(match.businessId !== null ? { businessId: match.businessId } : {}),
-          ...(match.transactionType !== null ? { transactionType: match.transactionType } : {}),
-          ...(match.isPersonal !== null ? { isPersonal: match.isPersonal } : {}),
-          reviewStatus: match.reviewStatus,
-          ...(match.reviewStatus === 'REVIEWED'
-            ? { reviewedById: user.id, reviewedAt: new Date() }
-            : {}),
-        },
-      })
-      applied++
-    } catch {
-      // partial success acceptable; individual row errors do not fail the batch
-    }
+  const BATCH_SIZE = 50
+  for (let i = 0; i < matches.length; i += BATCH_SIZE) {
+    const batch = matches.slice(i, i + BATCH_SIZE)
+    const results = await Promise.allSettled(
+      batch.map((match) =>
+        prisma.transaction.update({
+          where: { id: match.transactionId },
+          data: {
+            ruleId: match.ruleId,
+            ...(match.categoryId !== null ? { categoryId: match.categoryId } : {}),
+            ...(match.supplierId !== null ? { supplierId: match.supplierId } : {}),
+            ...(match.businessId !== null ? { businessId: match.businessId } : {}),
+            ...(match.transactionType !== null ? { transactionType: match.transactionType } : {}),
+            ...(match.isPersonal !== null ? { isPersonal: match.isPersonal } : {}),
+            reviewStatus: match.reviewStatus,
+            ...(match.reviewStatus === 'REVIEWED'
+              ? { reviewedById: user.id, reviewedAt: new Date() }
+              : {}),
+          },
+        })
+      )
+    )
+    applied += results.filter((r) => r.status === 'fulfilled').length
   }
 
   return c.json({ applied })

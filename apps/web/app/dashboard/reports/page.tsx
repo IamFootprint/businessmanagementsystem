@@ -29,9 +29,20 @@ export default async function ReportsPage({
     )
   }
 
-  const { periods } = await apiRequestAuthenticated<PeriodsResponse>(
-    `/periods?businessId=${businessId}`
-  )
+  let periods: Period[]
+  try {
+    const response = await apiRequestAuthenticated<PeriodsResponse>(
+      `/periods?businessId=${businessId}`
+    )
+    periods = response.periods
+  } catch {
+    return (
+      <div>
+        <h1>Reports</h1>
+        <p>Unable to load periods. Please try again.</p>
+      </div>
+    )
+  }
 
   return (
     <div>

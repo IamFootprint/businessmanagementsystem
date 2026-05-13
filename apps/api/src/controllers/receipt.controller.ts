@@ -6,6 +6,7 @@ import { rankCandidates } from '../lib/receipt-match'
 
 const STALE_DAYS = 90
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
 
 export async function uploadReceiptPublic(c: Context<AppEnv>) {
   let formData: FormData
@@ -20,6 +21,7 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
 
   if (!file || typeof file === 'string') return c.json({ error: 'file is required' }, 400)
   if (!phone || typeof phone !== 'string') return c.json({ error: 'phone is required' }, 400)
+  if ((file as File).size > MAX_FILE_BYTES) return c.json({ error: 'File exceeds 10 MB limit' }, 413)
 
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN
   if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
@@ -49,7 +51,11 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
         uploaderLat: lat ? (isNaN(parseFloat(lat as string)) ? null : parseFloat(lat as string)) : null,
         uploaderLng: lng ? (isNaN(parseFloat(lng as string)) ? null : parseFloat(lng as string)) : null,
         hintAmountCents: hintAmount ? (isNaN(parseFloat(hintAmount as string)) ? null : Math.round(parseFloat(hintAmount as string) * 100)) : null,
-        hintDate: hintDate ? new Date(hintDate as string) : null,
+        hintDate: (() => {
+          if (!hintDate) return null
+          const d = new Date(hintDate as string)
+          return isNaN(d.getTime()) ? null : d
+        })(),
         hintSupplier: hintSupplier ? String(hintSupplier) : null,
         hintBusinessId: hintBusinessId ? String(hintBusinessId) : null,
         storagePath,
@@ -65,13 +71,23 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
 }
 
 export async function listReceipts(c: Context<AppEnv>) {
+  const user = c.get('user')
   const { matchStatus, businessId } = c.req.query()
 
-  const where: Record<string, unknown> = {}
-  if (matchStatus) where.matchStatus = matchStatus
-  if (businessId) where.hintBusinessId = businessId
-
   try {
+    const tenantBusinessIds = (
+      await prisma.business.findMany({ where: { tenantId: user.tenantId }, select: { id: true } })
+    ).map((b) => b.id)
+
+    const where: Record<string, unknown> = {
+      hintBusinessId: { in: tenantBusinessIds },
+    }
+    if (matchStatus) where.matchStatus = matchStatus
+    if (businessId) {
+      if (!tenantBusinessIds.includes(businessId)) return c.json({ error: 'Not found' }, 404)
+      where.hintBusinessId = businessId
+    }
+
     const receipts = await prisma.receipt.findMany({
       where,
       orderBy: { capturedAt: 'desc' },
@@ -104,6 +120,10 @@ export async function updateReceipt(c: Context<AppEnv>) {
   try {
     const receipt = await prisma.receipt.findUnique({ where: { id } })
     if (!receipt) return c.json({ error: 'Not found' }, 404)
+    if (receipt.hintBusinessId) {
+      const business = await prisma.business.findFirst({ where: { id: receipt.hintBusinessId, tenantId: user.tenantId } })
+      if (!business) return c.json({ error: 'Not found' }, 404)
+    }
 
     const updated = await prisma.receipt.update({
       where: { id },
@@ -123,10 +143,15 @@ export async function updateReceipt(c: Context<AppEnv>) {
 
 export async function matchReceipt(c: Context<AppEnv>) {
   const { id } = c.req.param()
+  const user = c.get('user')
 
   try {
     const receipt = await prisma.receipt.findUnique({ where: { id } })
     if (!receipt) return c.json({ error: 'Not found' }, 404)
+    if (receipt.hintBusinessId) {
+      const business = await prisma.business.findFirst({ where: { id: receipt.hintBusinessId, tenantId: user.tenantId } })
+      if (!business) return c.json({ error: 'Not found' }, 404)
+    }
 
     const hint = {
       hintAmountCents: receipt.hintAmountCents,

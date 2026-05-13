@@ -8,7 +8,7 @@ function escapeCsv(value: string): string {
 }
 
 export function reportToCsv(
-  _report: ReportSnapshotData,
+  report: ReportSnapshotData,
   transactions: ReportTransaction[]
 ): string {
   const header = 'Date,Description,Amount (ZAR),Category,Direction,Status'
@@ -23,5 +23,13 @@ export function reportToCsv(
       const status = t.reviewStatus
       return [date, desc, amount, category, direction, status].join(',')
     })
-  return [header, ...rows].join('\n')
+  const period = `${report.year}-${String(report.month).padStart(2, '0')}`
+  const summary = [
+    '',
+    escapeCsv(`Summary: ${period}`),
+    `Total Revenue,R${(report.totalRevenueCents / 100).toFixed(2)}`,
+    `Total Expenses,R${(report.totalExpenseCents / 100).toFixed(2)}`,
+    `Net Profit,R${(report.netProfitCents / 100).toFixed(2)}`,
+  ]
+  return [header, ...rows, ...summary].join('\n')
 }

@@ -18,6 +18,10 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     }
     return c.json({ error: 'Unauthorized' }, 401)
   }
+  if (!session.user.active) {
+    prisma.session.delete({ where: { id: session.id } }).catch(() => undefined)
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const sessionUser: SessionUser = {
     id: session.user.id,
     tenantId: session.user.tenantId,

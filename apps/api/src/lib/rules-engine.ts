@@ -40,7 +40,7 @@ export function applyRulesToTransactions(
   rules: Rule[]
 ): RuleMatch[] {
   const sortedRules = [...rules]
-    .filter(r => r.active)
+    .filter(r => r.active && r.descriptionPattern.trim().length > 0)
     .sort((a, b) => b.priority - a.priority)
 
   const matches: RuleMatch[] = []

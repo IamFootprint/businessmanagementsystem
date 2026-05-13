@@ -46,6 +46,7 @@ export async function createImport(c: Context<AppEnv>) {
     const summary = await runImport({
       bankAccountId,
       importedById: user.id,
+      tenantId: user.tenantId,
       fileName: (file as File).name,
       csvText,
       parsedResult,

@@ -78,10 +78,17 @@ describe('reportToCsv', () => {
     expect(csv.split('\n')[0]).toBe('Date,Description,Amount (ZAR),Category,Direction,Status')
   })
 
-  it('includes one data row per transaction', () => {
+  it('includes one data row per transaction plus summary footer', () => {
     const report = buildReport(BUSINESS_ID, YEAR, MONTH, [baseTx])
     const csv = reportToCsv(report, [baseTx])
-    const rows = csv.trim().split('\n')
-    expect(rows).toHaveLength(2) // header + 1 data row
+    const rows = csv.split('\n')
+    // header + 1 data row + blank line + 4 summary lines = 7
+    expect(rows).toHaveLength(7)
+    expect(rows[1]).toContain('PICK N PAY')
+    expect(rows[2]).toBe('')
+    expect(rows[3]).toContain('Summary')
+    expect(rows[4]).toContain('Total Revenue')
+    expect(rows[5]).toContain('Total Expenses')
+    expect(rows[6]).toContain('Net Profit')
   })
 })

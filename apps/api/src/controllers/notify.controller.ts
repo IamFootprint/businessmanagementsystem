@@ -60,13 +60,15 @@ export async function notifyCloseReminder(c: Context<AppEnv>) {
       return c.json({ sent: false, message: 'No periods need reminders' })
     }
 
-    for (const period of openPeriods) {
-      await sendCloseReminderNotification(phone, {
-        businessName: period.business.name,
-        month: MONTHS[period.month - 1],
-        year: period.year,
-      })
-    }
+    await Promise.allSettled(
+      openPeriods.map((period) =>
+        sendCloseReminderNotification(phone, {
+          businessName: period.business.name,
+          month: MONTHS[period.month - 1],
+          year: period.year,
+        })
+      )
+    )
 
     return c.json({ sent: true, message: `Sent ${openPeriods.length} reminder(s)` })
   } catch {
@@ -89,7 +91,10 @@ export async function notifyStaleReceipts(c: Context<AppEnv>) {
   if (!phone) return c.json({ error: 'phone required' }, 400)
 
   try {
-    const count = await prisma.receipt.count({ where: { isStale: true } })
+    const tenantBusinessIds = (
+      await prisma.business.findMany({ where: { tenantId: user.tenantId }, select: { id: true } })
+    ).map((b) => b.id)
+    const count = await prisma.receipt.count({ where: { isStale: true, hintBusinessId: { in: tenantBusinessIds } } })
     if (count === 0) return c.json({ sent: false, message: 'No stale receipts' })
 
     const result = await sendStaleReceiptNotification(phone, { count })

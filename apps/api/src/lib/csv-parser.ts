@@ -18,7 +18,7 @@ function parseCents(raw: string): number {
   if (!raw || raw.trim() === '') return 0
   const cleaned = raw.replace(/,/g, '').trim()
   const float = parseFloat(cleaned)
-  if (isNaN(float)) return 0
+  if (isNaN(float)) throw new Error(`Cannot parse amount: "${raw}"`)
   return Math.round(float * 100)
 }
 
@@ -27,6 +27,7 @@ function parseDate(raw: string): Date {
     Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
     Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
   }
+  // "DD Mon YYYY" format (e.g. "02 Apr 2025")
   const parts = raw.trim().split(' ')
   if (parts.length === 3) {
     const day = parseInt(parts[0], 10)
@@ -36,9 +37,12 @@ function parseDate(raw: string): Date {
       return new Date(Date.UTC(year, month, day))
     }
   }
-  const d = new Date(raw)
-  if (!isNaN(d.getTime())) return d
-  throw new Error(`Cannot parse date: ${raw}`)
+  // ISO 8601 date-only: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+    const [y, m, d] = raw.trim().split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d))
+  }
+  throw new Error(`Cannot parse date: "${raw}"`)
 }
 
 export function parseStandardBankCsv(csvText: string): ParseResult {

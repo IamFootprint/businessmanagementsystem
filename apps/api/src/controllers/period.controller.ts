@@ -7,12 +7,13 @@ import { reportToCsv } from '../lib/csv-export'
 const FINANCE_ROLES = ['TENANT_OWNER', 'FINANCE_MANAGER']
 
 export async function listPeriods(c: Context<AppEnv>) {
+  const user = c.get('user')
   const { businessId } = c.req.query()
   if (!businessId) return c.json({ error: 'businessId query param required' }, 400)
 
   try {
     const periods = await prisma.monthlyPeriod.findMany({
-      where: { businessId },
+      where: { businessId, business: { tenantId: user.tenantId } },
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     })
     return c.json({ periods })
@@ -36,6 +37,9 @@ export async function createPeriod(c: Context<AppEnv>) {
   if (!businessId || !year || !month) return c.json({ error: 'businessId, year, month required' }, 400)
 
   try {
+    const business = await prisma.business.findFirst({ where: { id: businessId, tenantId: user.tenantId } })
+    if (!business) return c.json({ error: 'Business not found' }, 404)
+
     const existing = await prisma.monthlyPeriod.findUnique({
       where: { businessId_year_month: { businessId, year, month } },
     })
@@ -87,7 +91,7 @@ export async function lockPeriod(c: Context<AppEnv>) {
   if (!FINANCE_ROLES.includes(user.role)) return c.json({ error: 'Forbidden' }, 403)
 
   try {
-    const period = await prisma.monthlyPeriod.findUnique({ where: { id } })
+    const period = await prisma.monthlyPeriod.findFirst({ where: { id, business: { tenantId: user.tenantId } } })
     if (!period) return c.json({ error: 'Not found' }, 404)
     if (period.status !== 'OPEN') return c.json({ error: 'Period must be OPEN to lock' }, 409)
 
@@ -148,7 +152,7 @@ export async function unlockPeriod(c: Context<AppEnv>) {
   if (!body.reason?.trim()) return c.json({ error: 'reason is required to unlock a period' }, 400)
 
   try {
-    const period = await prisma.monthlyPeriod.findUnique({ where: { id } })
+    const period = await prisma.monthlyPeriod.findFirst({ where: { id, business: { tenantId: user.tenantId } } })
     if (!period) return c.json({ error: 'Not found' }, 404)
     if (period.status !== 'LOCKED') return c.json({ error: 'Period must be LOCKED to unlock' }, 409)
 
@@ -172,9 +176,12 @@ export async function unlockPeriod(c: Context<AppEnv>) {
 
 export async function getPeriodReport(c: Context<AppEnv>) {
   const { id } = c.req.param()
+  const user = c.get('user')
 
   try {
-    const snapshot = await prisma.reportSnapshot.findUnique({ where: { periodId: id } })
+    const snapshot = await prisma.reportSnapshot.findFirst({
+      where: { periodId: id, period: { business: { tenantId: user.tenantId } } },
+    })
     if (!snapshot) return c.json({ error: 'Report not yet generated — lock the period first' }, 404)
     return c.json({ snapshot: snapshot.snapshotJson })
   } catch {
@@ -184,11 +191,12 @@ export async function getPeriodReport(c: Context<AppEnv>) {
 
 export async function exportPeriodCsv(c: Context<AppEnv>) {
   const { id } = c.req.param()
+  const user = c.get('user')
 
   try {
     const [period, snapshot] = await Promise.all([
-      prisma.monthlyPeriod.findUnique({ where: { id } }),
-      prisma.reportSnapshot.findUnique({ where: { periodId: id } }),
+      prisma.monthlyPeriod.findFirst({ where: { id, business: { tenantId: user.tenantId } } }),
+      prisma.reportSnapshot.findFirst({ where: { periodId: id, period: { business: { tenantId: user.tenantId } } } }),
     ])
     if (!period) return c.json({ error: 'Not found' }, 404)
     if (!snapshot) return c.json({ error: 'Report not yet generated — lock the period first' }, 404)

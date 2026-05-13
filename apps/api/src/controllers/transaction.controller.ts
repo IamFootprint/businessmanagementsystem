@@ -138,18 +138,6 @@ export async function bulkUpdateTransactions(c: Context<AppEnv>) {
     return c.json({ error: 'Cannot bulk-update more than 200 transactions at once' }, 400)
   }
 
-  const count = await prisma.transaction.count({
-    where: {
-      id: { in: body.ids },
-      bankAccount: { tenantId: user.tenantId },
-      reviewStatus: { not: 'LOCKED' },
-    },
-  })
-
-  if (count !== body.ids.length) {
-    return c.json({ error: 'One or more transactions not found, locked, or not accessible' }, 422)
-  }
-
   try {
     const result = await prisma.transaction.updateMany({
       where: {

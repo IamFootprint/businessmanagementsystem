@@ -7,6 +7,7 @@ import { createHash } from 'crypto'
 export type ImportInput = {
   bankAccountId: string
   importedById: string
+  tenantId: string
   fileName: string
   csvText: string
   parsedResult: ParseResult
@@ -129,13 +130,14 @@ async function processRow(
 }
 
 export async function runImport(input: ImportInput): Promise<ImportSummary> {
-  const { bankAccountId, importedById, fileName, csvText, parsedResult } = input
+  const { bankAccountId, importedById, tenantId, fileName, csvText, parsedResult } = input
 
   const bankAccount = await prisma.bankAccount.findUnique({
     where: { id: bankAccountId },
     select: { tenantId: true },
   })
   if (!bankAccount) throw new Error(`Bank account not found: ${bankAccountId}`)
+  if (bankAccount.tenantId !== tenantId) throw new Error(`Bank account does not belong to tenant`)
 
   const { rows, openingBalanceCents, closingBalanceCents } = parsedResult
 
