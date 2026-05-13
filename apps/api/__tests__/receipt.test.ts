@@ -111,3 +111,30 @@ describe('POST /receipts/mark-stale', () => {
     expect(typeof body.marked).toBe('number')
   })
 })
+
+describe('POST /receipts/public', () => {
+  it('returns 400 when file is missing', async () => {
+    const fd = new FormData()
+    fd.append('phone', '+27-receipt-test')
+    const res = await app.request('/receipts/public', { method: 'POST', body: fd })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when phone is missing', async () => {
+    const fd = new FormData()
+    fd.append('file', new Blob(['fake'], { type: 'image/jpeg' }), 'test.jpg')
+    const res = await app.request('/receipts/public', { method: 'POST', body: fd })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 500 when BLOB_READ_WRITE_TOKEN is not set', async () => {
+    const original = process.env.BLOB_READ_WRITE_TOKEN
+    delete process.env.BLOB_READ_WRITE_TOKEN
+    const fd = new FormData()
+    fd.append('file', new Blob(['fake'], { type: 'image/jpeg' }), 'test.jpg')
+    fd.append('phone', '+27-receipt-test')
+    const res = await app.request('/receipts/public', { method: 'POST', body: fd })
+    expect(res.status).toBe(500)
+    process.env.BLOB_READ_WRITE_TOKEN = original
+  })
+})

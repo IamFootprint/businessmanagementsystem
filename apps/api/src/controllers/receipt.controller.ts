@@ -8,9 +8,6 @@ const STALE_DAYS = 90
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
 
 export async function uploadReceiptPublic(c: Context<AppEnv>) {
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN
-  if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
-
   let formData: FormData
   try {
     formData = await c.req.formData()
@@ -23,6 +20,9 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
 
   if (!file || typeof file === 'string') return c.json({ error: 'file is required' }, 400)
   if (!phone || typeof phone !== 'string') return c.json({ error: 'phone is required' }, 400)
+
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+  if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
 
   const lat = formData.get('lat')
   const lng = formData.get('lng')
@@ -48,7 +48,7 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
         uploaderPhone: phone,
         uploaderLat: lat ? parseFloat(lat as string) : null,
         uploaderLng: lng ? parseFloat(lng as string) : null,
-        hintAmountCents: hintAmount ? parseInt(hintAmount as string, 10) : null,
+        hintAmountCents: hintAmount ? Math.round(parseFloat(hintAmount as string) * 100) : null,
         hintDate: hintDate ? new Date(hintDate as string) : null,
         hintSupplier: hintSupplier ? String(hintSupplier) : null,
         hintBusinessId: hintBusinessId ? String(hintBusinessId) : null,
@@ -92,6 +92,10 @@ export async function updateReceipt(c: Context<AppEnv>) {
     body = await c.req.json()
   } catch {
     return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  if (!body.matchStatus && body.transactionId === undefined) {
+    return c.json({ error: 'At least one of matchStatus or transactionId is required' }, 400)
   }
 
   try {
@@ -152,6 +156,11 @@ export async function matchReceipt(c: Context<AppEnv>) {
           transactionId: best.matchStatus === 'MATCHED' ? best.transactionId : undefined,
           matchedAt: new Date(),
         },
+      })
+    } else {
+      await prisma.receipt.update({
+        where: { id },
+        data: { matchStatus: 'UNMATCHED' as never, matchedAt: new Date() },
       })
     }
 
