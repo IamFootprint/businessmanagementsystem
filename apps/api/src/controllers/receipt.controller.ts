@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
-import { prisma } from '@bms/db'
+import { prisma, ReceiptMatchStatus } from '@bms/db'
 import { put } from '@vercel/blob'
 import { rankCandidates } from '../lib/receipt-match'
 
@@ -46,9 +46,9 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
     const receipt = await prisma.receipt.create({
       data: {
         uploaderPhone: phone,
-        uploaderLat: lat ? parseFloat(lat as string) : null,
-        uploaderLng: lng ? parseFloat(lng as string) : null,
-        hintAmountCents: hintAmount ? Math.round(parseFloat(hintAmount as string) * 100) : null,
+        uploaderLat: lat ? (isNaN(parseFloat(lat as string)) ? null : parseFloat(lat as string)) : null,
+        uploaderLng: lng ? (isNaN(parseFloat(lng as string)) ? null : parseFloat(lng as string)) : null,
+        hintAmountCents: hintAmount ? (isNaN(parseFloat(hintAmount as string)) ? null : Math.round(parseFloat(hintAmount as string) * 100)) : null,
         hintDate: hintDate ? new Date(hintDate as string) : null,
         hintSupplier: hintSupplier ? String(hintSupplier) : null,
         hintBusinessId: hintBusinessId ? String(hintBusinessId) : null,
@@ -94,7 +94,10 @@ export async function updateReceipt(c: Context<AppEnv>) {
     return c.json({ error: 'Invalid JSON' }, 400)
   }
 
-  if (!body.matchStatus && body.transactionId === undefined) {
+  if (body.matchStatus !== undefined && !Object.values(ReceiptMatchStatus).includes(body.matchStatus as ReceiptMatchStatus)) {
+    return c.json({ error: 'Invalid matchStatus value' }, 400)
+  }
+  if (body.matchStatus === undefined && body.transactionId === undefined) {
     return c.json({ error: 'At least one of matchStatus or transactionId is required' }, 400)
   }
 
@@ -105,12 +108,15 @@ export async function updateReceipt(c: Context<AppEnv>) {
     const updated = await prisma.receipt.update({
       where: { id },
       data: {
-        ...(body.matchStatus ? { matchStatus: body.matchStatus as never } : {}),
+        ...(body.matchStatus ? { matchStatus: body.matchStatus as ReceiptMatchStatus } : {}),
         ...(body.transactionId !== undefined ? { transactionId: body.transactionId, matchedById: user.id, matchedAt: new Date() } : {}),
       },
     })
     return c.json({ receipt: updated })
-  } catch {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'P2003') {
+      return c.json({ error: 'Referenced user not found' }, 400)
+    }
     return c.json({ error: 'Internal server error' }, 500)
   }
 }
@@ -151,7 +157,7 @@ export async function matchReceipt(c: Context<AppEnv>) {
       await prisma.receipt.update({
         where: { id },
         data: {
-          matchStatus: best.matchStatus as never,
+          matchStatus: best.matchStatus as ReceiptMatchStatus,
           matchScore: best.score,
           transactionId: best.matchStatus === 'MATCHED' ? best.transactionId : undefined,
           matchedAt: new Date(),
@@ -160,7 +166,7 @@ export async function matchReceipt(c: Context<AppEnv>) {
     } else {
       await prisma.receipt.update({
         where: { id },
-        data: { matchStatus: 'UNMATCHED' as never, matchedAt: new Date() },
+        data: { matchStatus: ReceiptMatchStatus.UNMATCHED, matchedAt: new Date() },
       })
     }
 
@@ -171,16 +177,21 @@ export async function matchReceipt(c: Context<AppEnv>) {
 }
 
 export async function markStaleReceipts(c: Context<AppEnv>) {
+  const user = c.get('user')
+  if (!['TENANT_OWNER', 'FINANCE_MANAGER'].includes(user.role)) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
   const cutoff = new Date(Date.now() - STALE_MS)
 
   try {
     const result = await prisma.receipt.updateMany({
       where: {
         capturedAt: { lt: cutoff },
-        matchStatus: { in: ['UNMATCHED', 'SUGGESTED'] },
+        matchStatus: { in: [ReceiptMatchStatus.UNMATCHED, ReceiptMatchStatus.SUGGESTED] },
         isStale: false,
       },
-      data: { isStale: true, matchStatus: 'STALE' },
+      data: { isStale: true, matchStatus: ReceiptMatchStatus.STALE },
     })
     return c.json({ marked: result.count })
   } catch {
