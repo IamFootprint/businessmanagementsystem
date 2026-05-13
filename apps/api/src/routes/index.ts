@@ -3,10 +3,12 @@ import type { AppEnv } from '../types'
 import { getHealth, getDbHealth } from '../controllers/health.controller'
 import { registerAuthRoutes } from './auth.routes'
 import { registerImportRoutes } from './import.routes'
+import { registerTransactionRoutes } from './transaction.routes'
 
 export function registerRoutes(app: Hono<AppEnv>) {
   app.get('/health', getHealth)
   app.get('/health/db', getDbHealth)
   registerAuthRoutes(app)
   registerImportRoutes(app)
+  registerTransactionRoutes(app)
 }
