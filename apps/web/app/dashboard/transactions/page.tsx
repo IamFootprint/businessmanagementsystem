@@ -56,8 +56,10 @@ export default async function TransactionsPage({
   searchParams: Promise<Record<string, string>>
 }) {
   const params = await searchParams
-  const reviewStatus = params.reviewStatus ?? 'NEEDS_REVIEW'
-  const page = params.page ?? '1'
+  const reviewStatus = (STATUS_TABS as readonly string[]).includes(params.reviewStatus)
+    ? params.reviewStatus
+    : 'NEEDS_REVIEW'
+  const page = /^\d+$/.test(params.page ?? '') ? params.page! : '1'
   const { data: transactions, meta } = await getTransactions(reviewStatus, page)
 
   return (
@@ -91,7 +93,7 @@ export default async function TransactionsPage({
                 : 'text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]'
             )}
           >
-            {s.replace('_', ' ')}
+            {s.replace(/_/g, ' ')}
           </Link>
         ))}
       </div>
@@ -102,12 +104,12 @@ export default async function TransactionsPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead scope="col">Date</TableHead>
+                <TableHead scope="col">Account</TableHead>
+                <TableHead scope="col">Description</TableHead>
+                <TableHead scope="col" className="text-right">Amount</TableHead>
+                <TableHead scope="col">Status</TableHead>
+                <TableHead scope="col">Category</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,7 +139,7 @@ export default async function TransactionsPage({
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusBadgeVariant(txn.reviewStatus)}>
-                        {txn.reviewStatus.replace('_', ' ')}
+                        {txn.reviewStatus.replace(/_/g, ' ')}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
