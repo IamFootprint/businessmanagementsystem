@@ -7,6 +7,10 @@ export async function getHealth(c: Context) {
 
 export async function getDbHealth(c: Context) {
   const start = Date.now()
-  await prisma.$queryRaw`SELECT 1`
-  return c.json({ status: 'ok', latencyMs: Date.now() - start })
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    return c.json({ status: 'ok', latencyMs: Date.now() - start })
+  } catch {
+    return c.json({ status: 'error', message: 'database unreachable' }, 503)
+  }
 }

@@ -8,5 +8,3 @@ export function createApp() {
   registerRoutes(app)
   return app
 }
-
-export const app = createApp()
