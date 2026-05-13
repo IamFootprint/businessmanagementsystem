@@ -4,6 +4,7 @@ import { getHealth, getDbHealth } from '../controllers/health.controller'
 import { registerAuthRoutes } from './auth.routes'
 import { registerImportRoutes } from './import.routes'
 import { registerTransactionRoutes } from './transaction.routes'
+import { registerSupplierRoutes } from './supplier.routes'
 
 export function registerRoutes(app: Hono<AppEnv>) {
   app.get('/health', getHealth)
@@ -11,4 +12,5 @@ export function registerRoutes(app: Hono<AppEnv>) {
   registerAuthRoutes(app)
   registerImportRoutes(app)
   registerTransactionRoutes(app)
+  registerSupplierRoutes(app)
 }
