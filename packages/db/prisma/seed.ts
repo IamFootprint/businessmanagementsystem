@@ -1,5 +1,5 @@
 import { PrismaClient, CategoryType, UserRole } from '@prisma/client'
-import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -106,14 +106,14 @@ async function main() {
   }
   console.log(`Categories: ${categoryDefs.length} seeded`)
 
-  // ── Initial admin user (dev only — bcrypt added in Plan 2) ───────────────────
+  // ── Initial admin user ───────────────────────────────────────────────────────
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'owner@kgolaentle.com'
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'changeme123!'
-  const passwordHash = crypto.createHash('sha256').update(adminPassword).digest('hex') // replaced with bcrypt in Plan 2
+  const passwordHash = await bcrypt.hash(adminPassword, 12)
 
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: { passwordHash },
     create: {
       tenantId: tenant.id,
       email: adminEmail,
