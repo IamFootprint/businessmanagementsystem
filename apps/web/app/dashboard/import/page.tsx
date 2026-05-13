@@ -37,16 +37,14 @@ export default function ImportPage() {
           </CardHeader>
           <CardContent>
             <form action={formAction} className="space-y-4">
-              {state?.error && (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md px-3 py-2 text-sm"
-                  style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 10%, white)', color: 'var(--color-destructive)' }}
-                >
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {state.error}
-                </div>
-              )}
+              <div role="alert" aria-live="assertive" aria-atomic="true" className="empty:hidden">
+                {state?.error && (
+                  <div className="flex items-start gap-2 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 10%, white)', color: 'var(--color-destructive)' }}>
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {state.error}
+                  </div>
+                )}
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="bankAccountId">Bank Account ID</Label>
                 <Input

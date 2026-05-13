@@ -12,17 +12,40 @@ type Supplier = {
   aliases: Alias[]
 }
 
-async function getSuppliers() {
+function isSafeUrl(url: string | null): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+async function getSuppliers(): Promise<{ ok: true; data: Supplier[] } | { ok: false }> {
   try {
     const res = await apiRequestAuthenticated<{ data: Supplier[] }>('/suppliers')
-    return res.data
+    return { ok: true, data: res.data }
   } catch {
-    return [] as Supplier[]
+    return { ok: false }
   }
 }
 
 export default async function SuppliersPage() {
-  const suppliers = await getSuppliers()
+  const result = await getSuppliers()
+
+  if (!result.ok) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-foreground)' }}>Suppliers</h1>
+        <div className="mt-6 rounded-md px-4 py-3 text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 8%, white)', color: 'var(--color-destructive)' }}>
+          Unable to load suppliers. Please try again.
+        </div>
+      </div>
+    )
+  }
+
+  const { data: suppliers } = result
 
   return (
     <div className="p-8">
@@ -50,10 +73,10 @@ export default async function SuppliersPage() {
             <Card key={supplier.id}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{supplier.name}</CardTitle>
-                {supplier.website && (
+                {isSafeUrl(supplier.website) && (
                   <CardDescription>
                     <a
-                      href={supplier.website}
+                      href={supplier.website!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 hover:underline"
