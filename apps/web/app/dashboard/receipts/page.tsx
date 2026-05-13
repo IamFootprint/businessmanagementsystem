@@ -6,6 +6,7 @@ import type { BadgeProps } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { isSafeUrl } from '@/lib/url'
 
 type ReceiptItem = {
   id: string
@@ -21,15 +22,6 @@ type ReceiptItem = {
 }
 
 const STATUS_TABS = ['', 'UNMATCHED', 'SUGGESTED', 'MATCHED', 'STALE'] as const
-
-function isSafeUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
 
 function matchStatusVariant(status: string): BadgeProps['variant'] {
   switch (status) {

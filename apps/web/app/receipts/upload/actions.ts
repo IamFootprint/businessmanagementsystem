@@ -22,6 +22,11 @@ export async function uploadReceiptAction(
 
   if (!phone || typeof phone !== 'string' || !phone.trim()) return { error: 'Phone number is required.' }
 
+  const phoneClean = phone.replace(/\s/g, '')
+  if (!/^\+27[6-8][0-9]{8}$/.test(phoneClean) && !/^0[6-8][0-9]{8}$/.test(phoneClean)) {
+    return { error: 'Please enter a valid South African phone number.' }
+  }
+
   try {
     await apiRequest<{ receiptId: string }>('/receipts/public', {
       method: 'POST',

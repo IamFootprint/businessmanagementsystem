@@ -2,6 +2,7 @@ import { Building2, ExternalLink, Tag } from 'lucide-react'
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { isSafeUrl } from '@/lib/url'
 
 type Alias = { id: string; pattern: string }
 type Supplier = {
@@ -10,16 +11,6 @@ type Supplier = {
   website: string | null
   notes: string | null
   aliases: Alias[]
-}
-
-function isSafeUrl(url: string | null): boolean {
-  if (!url) return false
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
-  } catch {
-    return false
-  }
 }
 
 async function getSuppliers(): Promise<{ ok: true; data: Supplier[] } | { ok: false }> {
