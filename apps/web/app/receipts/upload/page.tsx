@@ -1,14 +1,32 @@
+import { Receipt } from 'lucide-react'
 import { GpsCapture } from './GpsCapture'
-import { uploadReceiptAction } from './actions'
 import { UploadReceiptForm } from './UploadReceiptForm'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default function ReceiptUploadPage() {
+export default function UploadReceiptPage() {
   return (
-    <main style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1rem' }}>
-      <h1>Upload Receipt</h1>
-      <p>Attach a photo or PDF of your receipt. We will match it to your transaction.</p>
-      <GpsCapture />
-      <UploadReceiptForm action={uploadReceiptAction} />
-    </main>
+    <div
+      className="flex min-h-screen items-start justify-center px-4 py-12"
+      style={{ backgroundColor: 'var(--color-muted)' }}
+    >
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div
+            className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, white)' }}
+          >
+            <Receipt className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
+          </div>
+          <CardTitle>Submit a Receipt</CardTitle>
+          <CardDescription>
+            Upload your receipt and we&apos;ll match it to the right transaction.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GpsCapture />
+          <UploadReceiptForm />
+        </CardContent>
+      </Card>
+    </div>
   )
 }
