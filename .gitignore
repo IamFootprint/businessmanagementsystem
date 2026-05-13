@@ -1,5 +1,7 @@
-.vercel
-.env.local
-.env
 node_modules/
-apps/web/.local-data/
+.env
+.env.local
+.next/
+dist/
+*.tsbuildinfo
+.turbo/
