@@ -25,18 +25,17 @@ async function main() {
     { name: 'Kgolaentle Holdings', slug: 'kgolaentle-holdings-group' },
   ]
 
-  const businesses: Record<string, string> = {}
   for (const def of businessDefs) {
     const b = await prisma.business.upsert({
       where: { tenantId_slug: { tenantId: tenant.id, slug: def.slug } },
       update: {},
       create: { tenantId: tenant.id, ...def },
     })
-    businesses[def.slug] = b.id
     console.log(`  Business: ${b.name}`)
   }
 
   // ── Bank account ─────────────────────────────────────────────────────────────
+  // id is pinned so the upsert where-clause works; BankAccount has no other unique key
   await prisma.bankAccount.upsert({
     where: { id: 'seed-stdbank-main' },
     update: {},
@@ -120,7 +119,7 @@ async function main() {
       email: adminEmail,
       passwordHash,
       name: 'Owner',
-      role: 'TENANT_OWNER' as UserRole,
+      role: UserRole.TENANT_OWNER,
     },
   })
   console.log(`Admin user: ${adminEmail}`)
