@@ -105,6 +105,11 @@ describe('POST /periods', () => {
 })
 
 describe('GET /periods', () => {
+  it('returns 401 without auth', async () => {
+    const res = await app.request(`/periods?businessId=${businessId}`)
+    expect(res.status).toBe(401)
+  })
+
   it('lists periods for a business', async () => {
     const res = await app.request(`/periods?businessId=${businessId}`, {
       headers: { Authorization: `Bearer ${sessionToken}` },

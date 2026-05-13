@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
-import { prisma } from '@bms/db'
+import { prisma, Prisma } from '@bms/db'
 import { buildReport, type ReportTransaction } from '../lib/report-engine'
 import { reportToCsv } from '../lib/csv-export'
 
@@ -89,27 +89,43 @@ export async function lockPeriod(c: Context<AppEnv>) {
   try {
     const period = await prisma.monthlyPeriod.findUnique({ where: { id } })
     if (!period) return c.json({ error: 'Not found' }, 404)
-    if (period.status === 'LOCKED') return c.json({ error: 'Period is already locked' }, 409)
+    if (period.status !== 'OPEN') return c.json({ error: 'Period must be OPEN to lock' }, 409)
 
-    const reportTxs = await fetchPeriodTransactions(period.businessId, period.year, period.month)
-    const snapshotData = buildReport(period.businessId, period.year, period.month, reportTxs)
+    const { updatedPeriod, snapshot } = await prisma.$transaction(async (tx) => {
+      const { from, to } = periodDateRange(period.year, period.month)
+      const transactions = await tx.transaction.findMany({
+        where: { businessId: period.businessId, transactionDate: { gte: from, lte: to } },
+        include: { category: true },
+      })
+      const reportTxs: ReportTransaction[] = transactions.map((t) => ({
+        id: t.id,
+        businessId: t.businessId,
+        transactionDate: t.transactionDate,
+        rawDescription: t.rawDescription,
+        cleanDescription: t.cleanDescription,
+        amountCents: t.amountCents,
+        direction: t.direction as 'CREDIT' | 'DEBIT',
+        transactionType: t.transactionType,
+        reviewStatus: t.reviewStatus,
+        isPersonal: t.isPersonal,
+        category: t.category ? { id: t.category.id, name: t.category.name } : null,
+      }))
+      const snapshotData = buildReport(period.businessId, period.year, period.month, reportTxs)
 
-    const results = await prisma.$transaction([
-      prisma.monthlyPeriod.update({
+      const updatedPeriod = await tx.monthlyPeriod.update({
         where: { id },
         data: { status: 'LOCKED', lockedAt: new Date(), lockedById: user.id },
-      }),
-      prisma.reportSnapshot.upsert({
+      })
+      const snapshot = await tx.reportSnapshot.upsert({
         where: { periodId: id },
-        create: { periodId: id, snapshotJson: snapshotData as never },
-        update: { snapshotJson: snapshotData as never },
-      }),
-      prisma.monthlyPeriodEvent.create({
+        create: { periodId: id, snapshotJson: snapshotData as Prisma.InputJsonValue },
+        update: { snapshotJson: snapshotData as Prisma.InputJsonValue },
+      })
+      await tx.monthlyPeriodEvent.create({
         data: { periodId: id, actorId: user.id, action: 'LOCKED' },
-      }),
-    ])
-
-    const [updatedPeriod, snapshot] = results
+      })
+      return { updatedPeriod, snapshot }
+    })
 
     return c.json({ period: updatedPeriod, snapshot: snapshot.snapshotJson })
   } catch {
@@ -134,7 +150,7 @@ export async function unlockPeriod(c: Context<AppEnv>) {
   try {
     const period = await prisma.monthlyPeriod.findUnique({ where: { id } })
     if (!period) return c.json({ error: 'Not found' }, 404)
-    if (period.status === 'OPEN') return c.json({ error: 'Period is already open' }, 409)
+    if (period.status !== 'LOCKED') return c.json({ error: 'Period must be LOCKED to unlock' }, 409)
 
     const results = await prisma.$transaction([
       prisma.monthlyPeriod.update({
@@ -178,7 +194,8 @@ export async function exportPeriodCsv(c: Context<AppEnv>) {
     if (!snapshot) return c.json({ error: 'Report not yet generated — lock the period first' }, 404)
 
     const reportTxs = await fetchPeriodTransactions(period.businessId, period.year, period.month)
-    const snapshotData = snapshot.snapshotJson as Parameters<typeof reportToCsv>[0]
+    // ReportSnapshotData serialised as Json in Prisma — safe to cast since we control both write and read
+    const snapshotData = snapshot.snapshotJson as Prisma.JsonValue as Parameters<typeof reportToCsv>[0]
     const csv = reportToCsv(snapshotData, reportTxs)
     const filename = `report-${period.year}-${String(period.month).padStart(2, '0')}.csv`
 
