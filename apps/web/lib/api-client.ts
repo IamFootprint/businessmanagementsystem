@@ -4,13 +4,14 @@ type ApiOptions = Omit<RequestInit, 'body'> & { body?: unknown }
 
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: isFormData
+      ? { ...(headers as Record<string, string>) }
+      : { 'Content-Type': 'application/json', ...(headers as Record<string, string>) },
+    body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
   })
 
   if (!res.ok) {
