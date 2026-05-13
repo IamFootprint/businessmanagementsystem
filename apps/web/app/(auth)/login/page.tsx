@@ -2,6 +2,10 @@
 import { useActionState } from 'react'
 import { loginAction } from './actions'
 import type { LoginState } from './actions'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState<LoginState, FormData>(
@@ -10,46 +14,53 @@ export default function LoginPage() {
   )
 
   return (
-    <main style={{ maxWidth: 400, margin: '100px auto', padding: '0 16px' }}>
-      <h1>BMS — Sign in</h1>
-      <form action={formAction}>
-        {state?.error && (
-          <p style={{ color: 'red', marginBottom: 12 }}>{state.error}</p>
-        )}
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="email" style={{ display: 'block', marginBottom: 4 }}>
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="password" style={{ display: 'block', marginBottom: 4 }}>
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isPending}
-          style={{ width: '100%', padding: '10px', cursor: isPending ? 'not-allowed' : 'pointer' }}
+    <Card className="w-full max-w-sm">
+      <CardHeader className="text-center">
+        <p
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: 'var(--color-primary)' }}
         >
-          {isPending ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
-    </main>
+          BMS
+        </p>
+        <CardTitle className="text-xl">Sign in</CardTitle>
+        <CardDescription>Kgolaentle Holdings internal system</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="space-y-4">
+          {state?.error && (
+            <div
+              className="rounded-md px-3 py-2 text-sm"
+              style={{ backgroundColor: '#fef2f2', color: 'var(--color-destructive)' }}
+            >
+              {state.error}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@kgolaentle.com"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+            />
+          </div>
+          <Button type="submit" disabled={isPending} className="w-full">
+            {isPending ? 'Signing in…' : 'Sign in'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
