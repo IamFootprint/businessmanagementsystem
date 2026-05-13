@@ -7,6 +7,7 @@ import {
   Receipt,
   BarChart3,
   LogOut,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,7 +20,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart3 },
 ]
 
-export function Sidebar({ activePath }: { activePath: string }) {
+export function Sidebar({ activePath, onClose }: { activePath: string; onClose?: () => void }) {
   return (
     <aside
       className="flex h-screen w-60 flex-col"
@@ -27,13 +28,23 @@ export function Sidebar({ activePath }: { activePath: string }) {
     >
       {/* Brand */}
       <div
-        className="flex h-14 items-center border-b px-5"
+        className="flex h-14 items-center justify-between border-b px-5"
         style={{ borderColor: 'var(--color-sidebar-hover)' }}
       >
         <div>
           <p className="text-sm font-bold tracking-wide" style={{ color: 'var(--color-sidebar-foreground)' }}>BMS</p>
           <p className="text-[10px]" style={{ color: 'var(--color-sidebar-muted)' }}>Kgolaentle Holdings</p>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 transition-colors hover:bg-[#1e293b]"
+            aria-label="Close navigation"
+            style={{ color: 'var(--color-sidebar-muted)' }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -44,6 +55,7 @@ export function Sidebar({ activePath }: { activePath: string }) {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 !isActive && 'hover:bg-[#1e293b]',
