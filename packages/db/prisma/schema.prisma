@@ -1,0 +1,453 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── TENANCY ─────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businesses    Business[]
+  bankAccounts  BankAccount[]
+  users         User[]
+  suppliers     Supplier[]
+  categories    Category[]
+  rules         TransactionRule[]
+  featureFlags  FeatureFlag[]
+}
+
+model Business {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  slug      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id])
+  transactions       Transaction[]
+  monthlyPeriods     MonthlyPeriod[]
+  supplierBusinesses SupplierBusiness[]
+  rules              TransactionRule[]
+
+  @@unique([tenantId, slug])
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  TENANT_OWNER
+  FINANCE_MANAGER
+  ACCOUNTANT
+  AUDITOR
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole
+  active       Boolean   @default(true)
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id])
+  sessions               Session[]
+  statementImports       StatementImport[]
+  transactionAuditEvents TransactionAuditEvent[]
+  receiptsUploaded       Receipt[]               @relation("ReceiptUploadedBy")
+  receiptMatches         Receipt[]               @relation("ReceiptMatchedBy")
+  monthlyPeriodEvents    MonthlyPeriodEvent[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── BANK ACCOUNTS ────────────────────────────────────────────────────────────
+
+model BankAccount {
+  id          String   @id @default(cuid())
+  tenantId    String
+  nickname    String
+  bankName    String
+  accountType String
+  lastFour    String?
+  currency    String   @default("ZAR")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  statementImports StatementImport[]
+  transactions     Transaction[]
+}
+
+// ─── STATEMENT IMPORTS ────────────────────────────────────────────────────────
+
+enum ImportStatus {
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+model StatementImport {
+  id                  String       @id @default(cuid())
+  bankAccountId       String
+  importedById        String
+  fileName            String
+  fileHash            String
+  rowCount            Int
+  importedCount       Int          @default(0)
+  duplicateCount      Int          @default(0)
+  errorCount          Int          @default(0)
+  skippedCount        Int          @default(0)
+  status              ImportStatus @default(PROCESSING)
+  openingBalanceCents Int?
+  closingBalanceCents Int?
+  periodStart         DateTime?
+  periodEnd           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  bankAccount  BankAccount          @relation(fields: [bankAccountId], references: [id])
+  importedBy   User                 @relation(fields: [importedById], references: [id])
+  rows         StatementImportRow[]
+  transactions Transaction[]
+}
+
+enum ImportRowAction {
+  IMPORTED
+  DUPLICATE_SKIPPED
+  OPENING_BALANCE
+  ERROR
+}
+
+model StatementImportRow {
+  id            String          @id @default(cuid())
+  importId      String
+  rowNumber     Int
+  rawJson       Json
+  duplicateHash String?
+  action        ImportRowAction
+  errorMessage  String?
+  transactionId String?         @unique
+  createdAt     DateTime        @default(now())
+
+  import      StatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  transaction Transaction?    @relation(fields: [transactionId], references: [id])
+}
+
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+
+enum TransactionDirection {
+  CREDIT
+  DEBIT
+}
+
+enum TransactionType {
+  REVENUE
+  EXPENSE
+  TRANSFER
+  OWNER_DRAW
+  DIRECTOR_LOAN
+  REFUND
+  BANK_CHARGE
+  TAX
+  UNKNOWN
+}
+
+enum ReviewStatus {
+  NEEDS_REVIEW
+  REVIEWED
+  UNCLEAR
+  LOCKED
+}
+
+model Transaction {
+  id                String               @id @default(cuid())
+  bankAccountId     String
+  importId          String
+  businessId        String?
+  supplierId        String?
+  categoryId        String?
+  refundCategoryId  String?
+  ruleId            String?
+
+  transactionDate   DateTime
+  rawDescription    String
+  cleanDescription  String
+  amountCents       Int
+  balanceAfterCents Int
+  duplicateHash     String               @unique
+  csvRowNumber      Int
+
+  direction         TransactionDirection
+  transactionType   TransactionType      @default(UNKNOWN)
+  isPersonal        Boolean              @default(false)
+  notes             String?
+
+  reviewStatus      ReviewStatus         @default(NEEDS_REVIEW)
+  reviewedById      String?
+  reviewedAt        DateTime?
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  bankAccount    BankAccount            @relation(fields: [bankAccountId], references: [id])
+  import         StatementImport        @relation(fields: [importId], references: [id])
+  business       Business?              @relation(fields: [businessId], references: [id])
+  supplier       Supplier?              @relation(fields: [supplierId], references: [id])
+  category       Category?              @relation("TransactionCategory", fields: [categoryId], references: [id])
+  refundCategory Category?              @relation("RefundCategory", fields: [refundCategoryId], references: [id])
+  rule           TransactionRule?       @relation(fields: [ruleId], references: [id])
+  importRow      StatementImportRow?
+  receipts       Receipt[]
+  auditEvents    TransactionAuditEvent[]
+}
+
+// ─── CATEGORIES ───────────────────────────────────────────────────────────────
+
+enum CategoryType {
+  REVENUE
+  EXPENSE
+  TRANSFER
+  OWNER
+  LOAN
+  TAX
+  UNKNOWN
+}
+
+model Category {
+  id              String       @id @default(cuid())
+  tenantId        String
+  categoryType    CategoryType
+  name            String
+  receiptRequired Boolean      @default(false)
+  active          Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  transactions       Transaction[]     @relation("TransactionCategory")
+  refundTransactions Transaction[]     @relation("RefundCategory")
+  rules              TransactionRule[]
+
+  @@unique([tenantId, name])
+}
+
+// ─── SUPPLIERS ────────────────────────────────────────────────────────────────
+
+model Supplier {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  website   String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  businesses   SupplierBusiness[]
+  aliases      SupplierAlias[]
+  transactions Transaction[]
+  rules        TransactionRule[]
+
+  @@unique([tenantId, name])
+}
+
+model SupplierBusiness {
+  id                     String           @id @default(cuid())
+  supplierId             String
+  businessId             String
+  defaultCategoryId      String?
+  defaultTransactionType TransactionType?
+  receiptRequired        Boolean          @default(false)
+  active                 Boolean          @default(true)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([supplierId, businessId])
+}
+
+model SupplierAlias {
+  id         String   @id @default(cuid())
+  supplierId String
+  pattern    String
+  createdAt  DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([supplierId, pattern])
+}
+
+// ─── TRANSACTION RULES ────────────────────────────────────────────────────────
+
+model TransactionRule {
+  id                 String           @id @default(cuid())
+  tenantId           String
+  name               String
+  descriptionPattern String
+  businessId         String?
+  supplierId         String?
+  categoryId         String?
+  transactionType    TransactionType?
+  isPersonal         Boolean?
+  receiptRequired    Boolean?
+  trustedAutoReview  Boolean          @default(false)
+  active             Boolean          @default(true)
+  priority           Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  business     Business?     @relation(fields: [businessId], references: [id])
+  supplier     Supplier?     @relation(fields: [supplierId], references: [id])
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  transactions Transaction[]
+}
+
+// ─── RECEIPTS ─────────────────────────────────────────────────────────────────
+
+enum ReceiptMatchStatus {
+  UNMATCHED
+  SUGGESTED
+  MATCHED
+  STALE
+}
+
+model Receipt {
+  id             String             @id @default(cuid())
+  transactionId  String?
+  uploadedById   String?
+  matchedById    String?
+
+  uploaderPhone  String
+  uploaderLat    Float?
+  uploaderLng    Float?
+  capturedAt     DateTime           @default(now())
+
+  hintAmountCents Int?
+  hintDate        DateTime?
+  hintSupplier    String?
+  hintBusinessId  String?
+
+  storagePath    String
+  fileName       String
+  fileMimeType   String
+  fileSizeBytes  Int
+
+  matchStatus    ReceiptMatchStatus @default(UNMATCHED)
+  matchScore     Float?
+  matchedAt      DateTime?
+  isStale        Boolean            @default(false)
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  uploadedBy  User?        @relation("ReceiptUploadedBy", fields: [uploadedById], references: [id])
+  matchedBy   User?        @relation("ReceiptMatchedBy", fields: [matchedById], references: [id])
+}
+
+// ─── MONTHLY PERIODS ──────────────────────────────────────────────────────────
+
+enum PeriodStatus {
+  OPEN
+  LOCKED
+}
+
+model MonthlyPeriod {
+  id         String       @id @default(cuid())
+  businessId String
+  year       Int
+  month      Int
+  status     PeriodStatus @default(OPEN)
+  lockedAt   DateTime?
+  lockedById String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  business Business              @relation(fields: [businessId], references: [id])
+  events   MonthlyPeriodEvent[]
+  snapshot ReportSnapshot?
+
+  @@unique([businessId, year, month])
+}
+
+model MonthlyPeriodEvent {
+  id        String   @id @default(cuid())
+  periodId  String
+  actorId   String
+  action    String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  period MonthlyPeriod @relation(fields: [periodId], references: [id])
+  actor  User          @relation(fields: [actorId], references: [id])
+}
+
+model ReportSnapshot {
+  id           String   @id @default(cuid())
+  periodId     String   @unique
+  snapshotJson Json
+  createdAt    DateTime @default(now())
+
+  period MonthlyPeriod @relation(fields: [periodId], references: [id])
+}
+
+// ─── AUDIT ────────────────────────────────────────────────────────────────────
+
+model TransactionAuditEvent {
+  id            String   @id @default(cuid())
+  transactionId String
+  actorId       String?
+  action        String
+  before        Json?
+  after         Json?
+  createdAt     DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  actor       User?       @relation(fields: [actorId], references: [id])
+}
+
+// ─── FEATURE FLAGS ────────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, key])
+}
