@@ -63,11 +63,11 @@ export function Sidebar({ activePath }: { activePath: string }) {
       </nav>
 
       {/* Logout */}
-      <div className="border-t p-2" style={{ borderColor: 'var(--color-sidebar-hover)' }}>
+      <div className="shrink-0 border-t p-2" style={{ borderColor: 'var(--color-sidebar-hover)' }}>
         <form action="/api/auth/logout" method="POST">
           <button
             type="submit"
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-[#1e293b]"
             style={{ color: 'var(--color-sidebar-muted)' }}
           >
             <LogOut className="h-4 w-4" />
