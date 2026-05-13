@@ -18,7 +18,11 @@ export type MatchResult = {
   matchStatus: 'MATCHED' | 'SUGGESTED' | 'UNMATCHED'
 }
 
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000
+const MS_PER_DAY = 86_400_000
+
+function dayDiff(a: Date, b: Date): number {
+  return Math.round(Math.abs(a.getTime() - b.getTime()) / MS_PER_DAY)
+}
 
 export function scoreReceipt(hint: ReceiptHint, tx: TransactionCandidate): MatchResult {
   let score = 0
@@ -26,7 +30,7 @@ export function scoreReceipt(hint: ReceiptHint, tx: TransactionCandidate): Match
   if (hint.hintAmountCents !== null && hint.hintAmountCents === tx.amountCents) {
     score++
   }
-  if (hint.hintDate !== null && Math.abs(hint.hintDate.getTime() - tx.date.getTime()) <= THREE_DAYS_MS) {
+  if (hint.hintDate !== null && dayDiff(hint.hintDate, tx.date) <= 3) {
     score++
   }
   if (hint.hintSupplier !== null && tx.cleanDescription.toUpperCase().includes(hint.hintSupplier.toUpperCase())) {
