@@ -56,7 +56,7 @@ enum UserRole {
 model User {
   id           String    @id @default(cuid())
   tenantId     String
-  email        String    @unique
+  email        String    @unique // global unique: single-tenant MVP; change to @@unique([tenantId,email]) if multi-tenant SaaS is introduced
   passwordHash String
   name         String
   role         UserRole
@@ -85,6 +85,8 @@ model Session {
   userAgent String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─── BANK ACCOUNTS ────────────────────────────────────────────────────────────
@@ -159,6 +161,8 @@ model StatementImportRow {
 
   import      StatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
   transaction Transaction?    @relation(fields: [transactionId], references: [id])
+
+  @@index([importId])
 }
 
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
@@ -227,6 +231,10 @@ model Transaction {
   importRow      StatementImportRow?
   receipts       Receipt[]
   auditEvents    TransactionAuditEvent[]
+
+  @@index([bankAccountId, transactionDate(sort: Desc)])
+  @@index([importId])
+  @@index([businessId])
 }
 
 // ─── CATEGORIES ───────────────────────────────────────────────────────────────
@@ -332,6 +340,8 @@ model TransactionRule {
   supplier     Supplier?     @relation(fields: [supplierId], references: [id])
   category     Category?     @relation(fields: [categoryId], references: [id])
   transactions Transaction[]
+
+  @@index([tenantId, priority])
 }
 
 // ─── RECEIPTS ─────────────────────────────────────────────────────────────────
@@ -412,6 +422,8 @@ model MonthlyPeriodEvent {
 
   period MonthlyPeriod @relation(fields: [periodId], references: [id])
   actor  User          @relation(fields: [actorId], references: [id])
+
+  @@index([periodId])
 }
 
 model ReportSnapshot {
@@ -436,6 +448,8 @@ model TransactionAuditEvent {
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   actor       User?       @relation(fields: [actorId], references: [id])
+
+  @@index([transactionId])
 }
 
 // ─── FEATURE FLAGS ────────────────────────────────────────────────────────────
