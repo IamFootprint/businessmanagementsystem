@@ -9,8 +9,8 @@ const CARDS = [
     icon: ListFilter,
     title: 'Transaction Review',
     description: 'Categorise and approve imported bank transactions',
-    accent: '#d97706',
-    bg: '#fffbeb',
+    accent: 'var(--color-warning)',
+    bg: 'color-mix(in srgb, var(--color-warning) 10%, white)',
   },
   {
     href: '/dashboard/import',
@@ -33,16 +33,16 @@ const CARDS = [
     icon: Building2,
     title: 'Suppliers',
     description: 'Manage supplier records and description aliases',
-    accent: '#475569',
-    bg: '#f8fafc',
+    accent: 'var(--color-muted-foreground)',
+    bg: 'var(--color-background)',
   },
   {
     href: '/dashboard/reports',
     icon: BarChart3,
     title: 'Reports',
     description: 'Lock monthly periods and download P&L exports',
-    accent: '#16a34a',
-    bg: '#f0fdf4',
+    accent: 'var(--color-success)',
+    bg: 'color-mix(in srgb, var(--color-success) 8%, white)',
   },
 ] as const
 

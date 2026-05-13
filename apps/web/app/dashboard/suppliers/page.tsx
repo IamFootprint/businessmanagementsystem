@@ -38,7 +38,7 @@ export default async function SuppliersPage() {
     return (
       <div className="p-8">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--color-foreground)' }}>Suppliers</h1>
-        <div className="mt-6 rounded-md px-4 py-3 text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 8%, white)', color: 'var(--color-destructive)' }}>
+        <div role="alert" className="mt-6 rounded-md px-4 py-3 text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 8%, white)', color: 'var(--color-destructive)' }}>
           Unable to load suppliers. Please try again.
         </div>
       </div>

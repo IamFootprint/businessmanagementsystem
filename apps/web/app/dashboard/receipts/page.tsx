@@ -79,6 +79,7 @@ export default async function ReceiptsInboxPage({
 
       {loadError && (
         <div
+          role="alert"
           className="rounded-md px-4 py-3 text-sm"
           style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 8%, white)', color: 'var(--color-destructive)' }}
         >

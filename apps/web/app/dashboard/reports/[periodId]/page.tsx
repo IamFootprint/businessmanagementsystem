@@ -126,7 +126,9 @@ export default async function ReportDetailPage({
         <Card
           style={{
             borderColor: netPositive ? 'color-mix(in srgb, var(--color-success) 30%, transparent)' : 'color-mix(in srgb, var(--color-destructive) 30%, transparent)',
-            backgroundColor: netPositive ? '#f0fdf4' : '#fef2f2',
+            backgroundColor: netPositive
+              ? 'color-mix(in srgb, var(--color-success) 8%, white)'
+              : 'color-mix(in srgb, var(--color-destructive) 8%, white)',
           }}
         >
           <CardHeader className="pb-2">
