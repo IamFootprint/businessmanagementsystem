@@ -46,6 +46,11 @@ async function processRow(
 
   const existing = await prisma.transaction.findUnique({ where: { duplicateHash } })
   if (existing) {
+    // transactionId is @unique so we cannot link it again across imports;
+    // record the duplicate row without a transactionId reference.
+    const alreadyLinked = await prisma.statementImportRow.findUnique({
+      where: { transactionId: existing.id },
+    })
     await prisma.statementImportRow.create({
       data: {
         importId,
@@ -53,7 +58,7 @@ async function processRow(
         rawJson: row as object,
         duplicateHash,
         action: 'DUPLICATE_SKIPPED',
-        transactionId: existing.id,
+        transactionId: alreadyLinked ? null : existing.id,
       },
     })
     return { action: 'DUPLICATE_SKIPPED' }
