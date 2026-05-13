@@ -1,6 +1,7 @@
+import React from 'react'
 import Link from 'next/link'
 import { ArrowUpFromLine, ListFilter, Building2, Receipt, BarChart3 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 const CARDS = [
   {
@@ -57,8 +58,8 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {CARDS.map(({ href, icon: Icon, title, description, accent, bg }) => (
-          <Link key={href} href={href} className="group block">
-            <Card className="h-full transition-shadow hover:shadow-md">
+          <Link key={href} href={href} className="group block focus-visible:outline-none">
+            <Card className="h-full transition-shadow hover:shadow-md group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2" style={{ outlineColor: 'var(--color-primary)' } as React.CSSProperties}>
               <CardHeader>
                 <div
                   className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg"
@@ -69,7 +70,6 @@ export default function DashboardPage() {
                 <CardTitle className="text-base">{title}</CardTitle>
                 <CardDescription>{description}</CardDescription>
               </CardHeader>
-              <CardContent />
             </Card>
           </Link>
         ))}
