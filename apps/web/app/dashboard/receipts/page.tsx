@@ -25,7 +25,7 @@ const STATUS_TABS = ['', 'UNMATCHED', 'SUGGESTED', 'MATCHED', 'STALE'] as const
 function isSafeUrl(url: string): boolean {
   try {
     const parsed = new URL(url)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+    return parsed.protocol === 'https:'
   } catch {
     return false
   }
@@ -62,7 +62,7 @@ export default async function ReceiptsInboxPage({
     const res = await apiRequestAuthenticated<{ receipts: ReceiptItem[] }>(
       `/receipts${qs.size ? `?${qs}` : ''}`
     )
-    receipts = res.receipts
+    receipts = Array.isArray(res.receipts) ? res.receipts : []
   } catch {
     loadError = true
   }

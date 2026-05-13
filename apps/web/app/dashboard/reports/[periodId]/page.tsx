@@ -25,6 +25,7 @@ type SnapshotData = {
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
+// API returns all amounts as positive cents; sign is applied at the call site
 function fmt(cents: number) {
   return `R ${(Math.abs(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 }
@@ -35,6 +36,14 @@ export default async function ReportDetailPage({
   params: Promise<{ periodId: string }>
 }) {
   const { periodId } = await params
+
+  if (!/^[\w-]+$/.test(periodId)) {
+    return (
+      <div className="p-8">
+        <p className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>Invalid period ID.</p>
+      </div>
+    )
+  }
 
   let snapshot: SnapshotData | null = null
   try {
@@ -214,7 +223,11 @@ export default async function ReportDetailPage({
                       <TableCell className="text-right font-mono" style={{ color: 'var(--color-muted-foreground)' }}>
                         {fmt(snapshot.uncategorisedRevenueCents)}
                       </TableCell>
-                      <TableCell className="text-right" style={{ color: 'var(--color-muted-foreground)' }}>—</TableCell>
+                      <TableCell className="text-right" style={{ color: 'var(--color-muted-foreground)' }}>
+                        {snapshot.totalRevenueCents > 0
+                          ? `${((snapshot.uncategorisedRevenueCents / snapshot.totalRevenueCents) * 100).toFixed(1)}%`
+                          : '—'}
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>

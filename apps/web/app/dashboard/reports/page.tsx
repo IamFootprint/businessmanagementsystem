@@ -17,6 +17,12 @@ type Period = {
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
+function periodStatusVariant(status: string): 'success' | 'warning' | 'secondary' {
+  if (status === 'LOCKED') return 'success'
+  if (status === 'OPEN') return 'warning'
+  return 'secondary'
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -92,7 +98,7 @@ export default async function ReportsPage({
                       {MONTH_NAMES[p.month - 1]} {p.year}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={p.status === 'LOCKED' ? 'success' : 'warning'}>
+                      <Badge variant={periodStatusVariant(p.status)}>
                         {p.status === 'LOCKED'
                           ? <><Lock className="mr-1 inline h-3 w-3" />{p.status}</>
                           : <><LockOpen className="mr-1 inline h-3 w-3" />{p.status}</>
