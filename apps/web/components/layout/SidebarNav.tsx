@@ -4,5 +4,5 @@ import { Sidebar } from './Sidebar'
 
 export function SidebarNav() {
   const pathname = usePathname()
-  return <Sidebar activePath={pathname} />
+  return <Sidebar activePath={pathname ?? '/dashboard'} />
 }
