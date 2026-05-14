@@ -21,9 +21,10 @@ export async function listCategories(c: Context<AppEnv>) {
 export async function createCategory(c: Context<AppEnv>) {
   const user = c.get('user')
   type Body = { name: string; categoryType: CategoryType; receiptRequired?: boolean }
-  const body: Body = await c.req.json<Body>().catch(() => ({ name: '', categoryType: 'UNKNOWN' as CategoryType }))
+  const body = await c.req.json<Body>().catch(() => ({} as Body))
 
   if (!body.name?.trim()) return c.json({ error: 'name is required' }, 400)
+  if (!body.categoryType) return c.json({ error: 'categoryType is required' }, 400)
   const VALID_TYPES: CategoryType[] = ['REVENUE', 'EXPENSE', 'TRANSFER', 'OWNER', 'LOAN', 'TAX', 'UNKNOWN']
   if (!VALID_TYPES.includes(body.categoryType)) return c.json({ error: 'invalid categoryType' }, 400)
 
