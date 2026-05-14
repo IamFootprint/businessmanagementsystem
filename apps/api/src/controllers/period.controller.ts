@@ -9,11 +9,14 @@ const FINANCE_ROLES = ['TENANT_OWNER', 'FINANCE_MANAGER']
 export async function listPeriods(c: Context<AppEnv>) {
   const user = c.get('user')
   const { businessId } = c.req.query()
-  if (!businessId) return c.json({ error: 'businessId query param required' }, 400)
 
   try {
+    const where = businessId
+      ? { businessId, business: { tenantId: user.tenantId } }
+      : { business: { tenantId: user.tenantId } }
+
     const periods = await prisma.monthlyPeriod.findMany({
-      where: { businessId, business: { tenantId: user.tenantId } },
+      where,
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     })
     return c.json({ periods })
