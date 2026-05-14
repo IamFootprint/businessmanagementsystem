@@ -1,10 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft, Download, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Separator } from '@/components/ui/separator'
 
 type CategoryItem = { categoryId: string; name: string; amountCents: number }
 
@@ -23,7 +19,10 @@ type SnapshotData = {
   transactionCount: number
 }
 
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+]
 
 // API returns all amounts as positive cents; sign is applied at the call site
 function fmt(cents: number) {
@@ -40,14 +39,18 @@ export default async function ReportDetailPage({
   if (!/^[\w-]+$/.test(periodId)) {
     return (
       <div className="p-8">
-        <p className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>Invalid period ID.</p>
+        <p className="text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
+          Invalid period ID.
+        </p>
       </div>
     )
   }
 
   let snapshot: SnapshotData | null = null
   try {
-    const response = await apiRequestAuthenticated<{ snapshot: SnapshotData }>(`/periods/${periodId}/report`)
+    const response = await apiRequestAuthenticated<{ snapshot: SnapshotData }>(
+      `/periods/${periodId}/report`
+    )
     snapshot = response.snapshot
   } catch {
     // fall through to null check below
@@ -56,16 +59,25 @@ export default async function ReportDetailPage({
   if (!snapshot) {
     return (
       <div className="p-8">
-        <Button asChild variant="ghost" size="sm" className="mb-6 -ml-2">
-          <Link href="/dashboard/reports"><ArrowLeft className="h-4 w-4" />Back to Reports</Link>
-        </Button>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
-              Report not available. Lock the period first to generate a snapshot.
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          href="/dashboard/reports"
+          className="mb-6 inline-flex items-center gap-1.5 text-[13px] transition-colors"
+          style={{ color: 'var(--color-ink-2)' }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Reports
+        </Link>
+        <div
+          className="mt-6 rounded-[10px] border py-12 text-center"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-panel)',
+          }}
+        >
+          <p className="text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
+            Report not available. Lock the period first to generate a snapshot.
+          </p>
+        </div>
       </div>
     )
   }
@@ -77,165 +89,328 @@ export default async function ReportDetailPage({
     <div className="p-8">
       {/* Back + download */}
       <div className="mb-6 flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link href="/dashboard/reports">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Reports
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <a href={`/api/periods/${periodId}/export`} download>
-            <Download className="h-4 w-4" />
-            Download CSV
-          </a>
-        </Button>
+        <Link
+          href="/dashboard/reports"
+          className="inline-flex items-center gap-1.5 text-[13px] transition-colors hover:text-[var(--color-ink)]"
+          style={{ color: 'var(--color-ink-2)' }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Reports
+        </Link>
+        <a
+          href={`/api/periods/${periodId}/export`}
+          download
+          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-[var(--color-panel-2)]"
+          style={{
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-ink-2)',
+          }}
+        >
+          <Download className="h-4 w-4" />
+          Download CSV
+        </a>
       </div>
 
       {/* Title */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-foreground)' }}>{title} — P&amp;L Report</h1>
-        <p className="mt-0.5 text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
+        <h1
+          className="text-[26px] font-semibold tracking-[-0.02em]"
+          style={{ color: 'var(--color-ink)' }}
+        >
+          {title} — P&amp;L Report
+        </h1>
+        <p className="mt-0.5 text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
           Generated {new Date(snapshot.generatedAt).toLocaleString('en-ZA')} · {snapshot.transactionCount} transactions
         </p>
       </div>
 
       {/* Summary cards */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--color-muted-foreground)' }}>
-              <TrendingUp className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold" style={{ color: 'var(--color-success)' }}>{fmt(snapshot.totalRevenueCents)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--color-muted-foreground)' }}>
-              <TrendingDown className="h-4 w-4" style={{ color: 'var(--color-destructive)' }} />
-              Total Expenses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold" style={{ color: 'var(--color-destructive)' }}>{fmt(snapshot.totalExpenseCents)}</p>
-          </CardContent>
-        </Card>
-        <Card
+        {/* Revenue */}
+        <div
+          className="rounded-[10px] border p-5"
           style={{
-            borderColor: netPositive ? 'color-mix(in srgb, var(--color-success) 30%, transparent)' : 'color-mix(in srgb, var(--color-destructive) 30%, transparent)',
-            backgroundColor: netPositive
-              ? 'color-mix(in srgb, var(--color-success) 8%, white)'
-              : 'color-mix(in srgb, var(--color-destructive) 8%, white)',
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-panel)',
           }}
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--color-muted-foreground)' }}>
-              <Minus className="h-4 w-4" />
-              Net Profit / Loss
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold" style={{ color: netPositive ? 'var(--color-success)' : 'var(--color-destructive)' }}>
-              {netPositive ? '' : '−'}{fmt(snapshot.netProfitCents)}
+          <div className="mb-1 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" style={{ color: 'var(--color-pos)' }} />
+            <p className="text-[12px] font-medium" style={{ color: 'var(--color-ink-3)' }}>
+              Total Revenue
             </p>
-          </CardContent>
-        </Card>
+          </div>
+          <p
+            className="text-[26px] font-semibold tracking-[-0.02em] tabular-nums"
+            style={{ color: 'var(--color-pos)' }}
+          >
+            {fmt(snapshot.totalRevenueCents)}
+          </p>
+        </div>
+
+        {/* Expenses */}
+        <div
+          className="rounded-[10px] border p-5"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-panel)',
+          }}
+        >
+          <div className="mb-1 flex items-center gap-2">
+            <TrendingDown className="h-4 w-4" style={{ color: 'var(--color-neg)' }} />
+            <p className="text-[12px] font-medium" style={{ color: 'var(--color-ink-3)' }}>
+              Total Expenses
+            </p>
+          </div>
+          <p
+            className="text-[26px] font-semibold tracking-[-0.02em] tabular-nums"
+            style={{ color: 'var(--color-neg)' }}
+          >
+            {fmt(snapshot.totalExpenseCents)}
+          </p>
+        </div>
+
+        {/* Net Profit */}
+        <div
+          className="rounded-[10px] border p-5"
+          style={{
+            borderColor: netPositive
+              ? 'color-mix(in srgb, var(--color-pos) 30%, transparent)'
+              : 'color-mix(in srgb, var(--color-neg) 30%, transparent)',
+            backgroundColor: netPositive
+              ? 'color-mix(in srgb, var(--color-pos) 8%, transparent)'
+              : 'color-mix(in srgb, var(--color-neg) 8%, transparent)',
+          }}
+        >
+          <div className="mb-1 flex items-center gap-2">
+            <Minus className="h-4 w-4" style={{ color: netPositive ? 'var(--color-pos)' : 'var(--color-neg)' }} />
+            <p className="text-[12px] font-medium" style={{ color: 'var(--color-ink-3)' }}>
+              Net Profit / Loss
+            </p>
+          </div>
+          <p
+            className="text-[26px] font-semibold tracking-[-0.02em] tabular-nums"
+            style={{ color: netPositive ? 'var(--color-pos)' : 'var(--color-neg)' }}
+          >
+            {netPositive ? '' : '−'}{fmt(snapshot.netProfitCents)}
+          </p>
+        </div>
       </div>
 
-      <Separator className="mb-8" />
+      {/* Separator */}
+      <div className="border-t border-[var(--color-border)] my-8" />
 
       {/* Expense breakdown */}
       {snapshot.expenseByCategory.length > 0 && (
         <div className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold" style={{ color: 'var(--color-foreground)' }}>Expenses by Category</h2>
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead scope="col">Category</TableHead>
-                    <TableHead scope="col" className="text-right">Amount</TableHead>
-                    <TableHead scope="col" className="text-right">% of expenses</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {snapshot.expenseByCategory.map((e) => (
-                    <TableRow key={e.categoryId}>
-                      <TableCell>{e.name}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(e.amountCents)}</TableCell>
-                      <TableCell className="text-right" style={{ color: 'var(--color-muted-foreground)' }}>
-                        {snapshot.totalExpenseCents > 0
-                          ? `${((e.amountCents / snapshot.totalExpenseCents) * 100).toFixed(1)}%`
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {snapshot.uncategorisedExpenseCents > 0 && (
-                    <TableRow>
-                      <TableCell className="italic" style={{ color: 'var(--color-muted-foreground)' }}>Uncategorised</TableCell>
-                      <TableCell className="text-right font-mono" style={{ color: 'var(--color-muted-foreground)' }}>
-                        {fmt(snapshot.uncategorisedExpenseCents)}
-                      </TableCell>
-                      <TableCell className="text-right" style={{ color: 'var(--color-muted-foreground)' }}>
-                        {snapshot.totalExpenseCents > 0
-                          ? `${((snapshot.uncategorisedExpenseCents / snapshot.totalExpenseCents) * 100).toFixed(1)}%`
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <h2
+            className="mb-3 text-[16px] font-semibold"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            Expenses by Category
+          </h2>
+          <div
+            className="rounded-[10px] border overflow-hidden"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-panel)',
+            }}
+          >
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr
+                  className="border-b"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-panel-2)',
+                  }}
+                >
+                  <th
+                    scope="col"
+                    className="px-4 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    Category
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-2.5 text-right text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    Amount
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-2.5 text-right text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    % of expenses
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.expenseByCategory.map((e) => (
+                  <tr
+                    key={e.categoryId}
+                    className="border-b"
+                    style={{ borderColor: 'var(--color-border-2)' }}
+                  >
+                    <td className="px-4 py-3" style={{ color: 'var(--color-ink)' }}>
+                      {e.name}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right font-mono tabular-nums"
+                      style={{ color: 'var(--color-ink)' }}
+                    >
+                      {fmt(e.amountCents)}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      {snapshot.totalExpenseCents > 0
+                        ? `${((e.amountCents / snapshot.totalExpenseCents) * 100).toFixed(1)}%`
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {snapshot.uncategorisedExpenseCents > 0 && (
+                  <tr
+                    className="border-b"
+                    style={{ borderColor: 'var(--color-border-2)' }}
+                  >
+                    <td
+                      className="px-4 py-3 italic"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      Uncategorised
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right font-mono tabular-nums"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      {fmt(snapshot.uncategorisedExpenseCents)}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      {snapshot.totalExpenseCents > 0
+                        ? `${((snapshot.uncategorisedExpenseCents / snapshot.totalExpenseCents) * 100).toFixed(1)}%`
+                        : '—'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* Revenue breakdown */}
       {snapshot.revenueByCategory.length > 0 && (
         <div>
-          <h2 className="mb-3 text-lg font-semibold" style={{ color: 'var(--color-foreground)' }}>Revenue by Category</h2>
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead scope="col">Category</TableHead>
-                    <TableHead scope="col" className="text-right">Amount</TableHead>
-                    <TableHead scope="col" className="text-right">% of revenue</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {snapshot.revenueByCategory.map((r) => (
-                    <TableRow key={r.categoryId}>
-                      <TableCell>{r.name}</TableCell>
-                      <TableCell className="text-right font-mono">{fmt(r.amountCents)}</TableCell>
-                      <TableCell className="text-right" style={{ color: 'var(--color-muted-foreground)' }}>
-                        {snapshot.totalRevenueCents > 0
-                          ? `${((r.amountCents / snapshot.totalRevenueCents) * 100).toFixed(1)}%`
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {snapshot.uncategorisedRevenueCents > 0 && (
-                    <TableRow>
-                      <TableCell className="italic" style={{ color: 'var(--color-muted-foreground)' }}>Uncategorised</TableCell>
-                      <TableCell className="text-right font-mono" style={{ color: 'var(--color-muted-foreground)' }}>
-                        {fmt(snapshot.uncategorisedRevenueCents)}
-                      </TableCell>
-                      <TableCell className="text-right" style={{ color: 'var(--color-muted-foreground)' }}>
-                        {snapshot.totalRevenueCents > 0
-                          ? `${((snapshot.uncategorisedRevenueCents / snapshot.totalRevenueCents) * 100).toFixed(1)}%`
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <h2
+            className="mb-3 text-[16px] font-semibold"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            Revenue by Category
+          </h2>
+          <div
+            className="rounded-[10px] border overflow-hidden"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'var(--color-panel)',
+            }}
+          >
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr
+                  className="border-b"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-panel-2)',
+                  }}
+                >
+                  <th
+                    scope="col"
+                    className="px-4 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    Category
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-2.5 text-right text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    Amount
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-2.5 text-right text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    % of revenue
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.revenueByCategory.map((r) => (
+                  <tr
+                    key={r.categoryId}
+                    className="border-b"
+                    style={{ borderColor: 'var(--color-border-2)' }}
+                  >
+                    <td className="px-4 py-3" style={{ color: 'var(--color-ink)' }}>
+                      {r.name}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right font-mono tabular-nums"
+                      style={{ color: 'var(--color-ink)' }}
+                    >
+                      {fmt(r.amountCents)}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      {snapshot.totalRevenueCents > 0
+                        ? `${((r.amountCents / snapshot.totalRevenueCents) * 100).toFixed(1)}%`
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {snapshot.uncategorisedRevenueCents > 0 && (
+                  <tr
+                    className="border-b"
+                    style={{ borderColor: 'var(--color-border-2)' }}
+                  >
+                    <td
+                      className="px-4 py-3 italic"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      Uncategorised
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right font-mono tabular-nums"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      {fmt(snapshot.uncategorisedRevenueCents)}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right"
+                      style={{ color: 'var(--color-ink-3)' }}
+                    >
+                      {snapshot.totalRevenueCents > 0
+                        ? `${((snapshot.uncategorisedRevenueCents / snapshot.totalRevenueCents) * 100).toFixed(1)}%`
+                        : '—'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

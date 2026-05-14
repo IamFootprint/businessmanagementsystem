@@ -1,18 +1,73 @@
 'use client'
-import { useActionState } from 'react'
-import { CheckCircle2, AlertCircle, UploadCloud } from 'lucide-react'
-import { importCsvAction } from './actions'
-import type { ImportState } from './actions'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import { useActionState, useEffect, useRef, useState } from 'react'
+import { UploadCloud, X, CheckCircle2, AlertCircle, ArrowDownToLine } from 'lucide-react'
+import NextLink from 'next/link'
+import { importCsvAction, type ImportState } from './actions'
 
-function formatCents(cents: number | null | undefined): string {
-  if (cents == null) return '—'
-  return `R ${(cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type PreviewRow = {
+  date: string
+  desc: string
+  amount: number
 }
+
+type Stage = 'idle' | 'preview' | 'done'
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim())
+      current = ''
+    } else {
+      current += ch
+    }
+  }
+  result.push(current.trim())
+  return result
+}
+
+function parseStdBankCsv(text: string): PreviewRow[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '')
+  const headerIdx = lines.findIndex(l => /date/i.test(l) && /amount/i.test(l))
+  if (headerIdx === -1) return []
+
+  const dataLines = lines.slice(headerIdx + 1)
+  const rows: PreviewRow[] = []
+
+  for (const line of dataLines) {
+    const cols = parseCsvLine(line)
+    const date = cols[0] ?? ''
+    if (!/^\d{2,4}[\/\-]\d{2}[\/\-]\d{2,4}$/.test(date.trim())) continue
+    const desc = cols[1] ?? ''
+    const rawAmount = (cols[2] ?? cols[3] ?? '').replace(/R|,|\s/g, '')
+    const amount = parseFloat(rawAmount)
+    if (isNaN(amount)) continue
+    rows.push({ date: date.trim(), desc: desc.trim(), amount })
+  }
+
+  return rows
+}
+
+function formatAmount(amount: number): string {
+  const abs = Math.abs(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return (amount < 0 ? '-' : '+') + 'R ' + abs
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ImportPage() {
   const [state, formAction, isPending] = useActionState<ImportState, FormData>(
@@ -20,105 +75,560 @@ export default function ImportPage() {
     null
   )
 
+  const [stage, setStage] = useState<Stage>('idle')
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([])
+  const [fileName, setFileName] = useState<string>('')
+  const [fileBlob, setFileBlob] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [bankAccountId, setBankAccountId] = useState('seed-stdbank-main')
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Mirror server action result into local state for display/stage transitions
+  useEffect(() => {
+    if (state?.summary) {
+      setStage('done')
+      setLocalError(null)
+    } else if (state?.error) {
+      setLocalError(state.error)
+      setStage('idle')
+    }
+  }, [state])
+
+  function handleFile(file: File) {
+    setFileName(file.name)
+    setFileBlob(file)
+    setLocalError(null)
+    const reader = new FileReader()
+    reader.onerror = () => setLocalError('Could not read the file. Please try again.')
+    reader.onload = e => {
+      const text = e.target?.result
+      if (typeof text !== 'string') {
+        setLocalError('Could not read the file. Please try again.')
+        return
+      }
+      const rows = parseStdBankCsv(text)
+      setPreviewRows(rows)
+      setStage('preview')
+    }
+    reader.readAsText(file)
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false)
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+  }
+
+  function handleConfirm() {
+    if (!fileBlob) return
+    const fd = new FormData()
+    fd.append('file', fileBlob)
+    fd.append('bankAccountId', bankAccountId)
+    formAction(fd)
+  }
+
+  function resetToIdle() {
+    setStage('idle')
+    setPreviewRows([])
+    setFileName('')
+    setFileBlob(null)
+    setLocalError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const newCount = previewRows.length
+  const dupCount = 0 // duplicates detected server-side; preview shows 0
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <div className="p-8">
+      {/* Page head */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-foreground)' }}>Import Bank Statement</h1>
-        <p className="mt-0.5 text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
-          Upload a Standard Bank CSV file to add new transactions.
+        <h1
+          className="text-[26px] font-semibold tracking-[-0.02em]"
+          style={{ color: 'var(--color-ink)' }}
+        >
+          Import bank statement
+        </h1>
+        <p className="mt-1 text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
+          Upload a Standard Bank CSV export — descriptions are matched against supplier aliases
         </p>
       </div>
 
-      <div className="max-w-lg space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Upload CSV</CardTitle>
-            <CardDescription>Standard Bank transaction export format</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={formAction} className="space-y-4">
-              <div role="alert" aria-live="assertive" aria-atomic="true" className="empty:hidden">
-                {state?.error && (
-                  <div className="flex items-start gap-2 rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--color-destructive) 10%, white)', color: 'var(--color-destructive)' }}>
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    {state.error}
-                  </div>
-                )}
+      {/* Error banner */}
+      {localError && (
+        <div
+          className="mb-5 flex items-start gap-2 rounded-md px-3 py-2.5 text-[13px]"
+          style={{
+            backgroundColor: 'color-mix(in srgb,var(--color-bad) 10%,transparent)',
+            color: 'var(--color-bad)',
+            border: '1px solid color-mix(in srgb,var(--color-bad) 25%,transparent)',
+          }}
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {localError}
+        </div>
+      )}
+
+      {/* ── Stage: done ── */}
+      {stage === 'done' && state?.summary ? (
+        <div
+          className="rounded-[10px] border bg-[var(--color-panel)]"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          {/* Head */}
+          <div
+            className="flex items-center gap-2.5 border-b px-5 py-4"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--color-ok)' }} />
+            <p className="text-[14px] font-semibold" style={{ color: 'var(--color-ok)' }}>
+              Import complete
+            </p>
+          </div>
+          {/* Body */}
+          <div className="p-5">
+            <dl className="space-y-2.5">
+              {(
+                [
+                  ['File', state.summary.fileName, false],
+                  ['Total rows', state.summary.rowCount, false],
+                  ['Imported', state.summary.importedCount, false],
+                  ['Duplicates skipped', state.summary.duplicateCount, false],
+                  ['Errors', state.summary.errorCount, true],
+                  [
+                    'Opening balance',
+                    state.summary.openingBalanceCents != null
+                      ? `R ${(state.summary.openingBalanceCents / 100).toFixed(2)}`
+                      : '—',
+                    false,
+                  ],
+                  [
+                    'Closing balance',
+                    state.summary.closingBalanceCents != null
+                      ? `R ${(state.summary.closingBalanceCents / 100).toFixed(2)}`
+                      : '—',
+                    false,
+                  ],
+                ] as [string, string | number, boolean][]
+              ).map(([label, value, isError]) => (
+                <div key={label} className="flex items-center justify-between">
+                  <dt className="text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
+                    {label}
+                  </dt>
+                  <dd
+                    className="text-[13px] font-medium"
+                    style={{
+                      color:
+                        isError && Number(value) > 0
+                          ? 'var(--color-bad)'
+                          : 'var(--color-ink)',
+                    }}
+                  >
+                    {String(value ?? '—')}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          {/* Footer */}
+          <div
+            className="flex items-center justify-end border-t px-5 py-3"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <NextLink
+              href="/dashboard/transactions?reviewStatus=NEEDS_REVIEW"
+              className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-medium transition-colors hover:opacity-90"
+              style={{
+                backgroundColor: 'var(--color-accent)',
+                color: '#fff',
+              }}
+            >
+              Review imported transactions →
+            </NextLink>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* ── Two-column grid (idle) ── */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {/* Left card: Upload CSV */}
+            <div
+              className="rounded-[10px] border bg-[var(--color-panel)]"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              {/* Head */}
+              <div
+                className="border-b px-5 py-4"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <p className="text-[14px] font-semibold" style={{ color: 'var(--color-ink)' }}>
+                  Upload CSV
+                </p>
+                <p className="mt-0.5 text-[12px]" style={{ color: 'var(--color-ink-3)' }}>
+                  Standard Bank format · descriptions, dates, amounts
+                </p>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bankAccountId">Bank Account ID</Label>
-                <Input
-                  id="bankAccountId"
-                  name="bankAccountId"
-                  type="text"
-                  required
-                  placeholder="seed-stdbank-main"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="file">CSV File</Label>
-                <Input
-                  id="file"
-                  name="file"
+              {/* Body */}
+              <div className="p-5 space-y-4">
+                {/* Bank account select */}
+                <div>
+                  <label
+                    htmlFor="bankAccount"
+                    className="mb-1.5 block text-[12px] font-semibold"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    Bank account
+                  </label>
+                  <select
+                    id="bankAccount"
+                    value={bankAccountId}
+                    onChange={e => setBankAccountId(e.target.value)}
+                    className="w-full rounded-md border px-3 py-2 text-[13px] focus:outline-none"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-panel)',
+                      color: 'var(--color-ink)',
+                    }}
+                  >
+                    <option value="seed-stdbank-main">Standard Bank Main</option>
+                  </select>
+                </div>
+
+                {/* Drop zone */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => fileInputRef.current?.click()}
+                  onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-[12px] px-4 py-8 text-center transition-colors"
+                  style={{
+                    border: `1.5px dashed ${isDragging ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                    backgroundColor: isDragging
+                      ? 'color-mix(in srgb,var(--color-accent) 10%,transparent)'
+                      : 'var(--color-panel-2)',
+                  }}
+                >
+                  <UploadCloud
+                    style={{ width: 28, height: 28, color: 'var(--color-ink-3)' }}
+                  />
+                  <p
+                    className="mt-3 text-[14px] font-medium"
+                    style={{ color: 'var(--color-ink)' }}
+                  >
+                    {isDragging ? 'Drop to upload' : 'Drop CSV here, or click to browse'}
+                  </p>
+                  <p
+                    className="mt-1 font-mono text-[11.5px]"
+                    style={{ color: 'var(--color-ink-3)' }}
+                  >
+                    stdbank-statement-export.csv
+                  </p>
+                </div>
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
                   type="file"
                   accept=".csv,text/csv"
-                  required
+                  className="hidden"
+                  onChange={handleFileChange}
                 />
               </div>
-              <Button type="submit" disabled={isPending} className="w-full">
-                {isPending ? (
-                  <>Importing…</>
-                ) : (
-                  <>
-                    <UploadCloud className="h-4 w-4" />
-                    Import Statement
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {state?.summary && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--color-success)' }} />
-                <CardTitle className="text-base" style={{ color: 'var(--color-success)' }}>Import complete</CardTitle>
+              {/* Footer */}
+              <div
+                className="flex items-center justify-end gap-3 border-t px-5 py-3"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <button
+                  disabled
+                  className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-medium transition-colors disabled:opacity-40"
+                  style={{ color: 'var(--color-ink-3)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-medium text-white transition-colors hover:opacity-90"
+                  style={{ backgroundColor: 'var(--color-accent)' }}
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Choose file
+                </button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-2 text-sm">
-                {([
-                  ['File', state.summary.fileName],
-                  ['Total rows', state.summary.rowCount],
-                  ['Imported', state.summary.importedCount],
-                  ['Duplicates skipped', state.summary.duplicateCount],
-                  ['Errors', state.summary.errorCount],
-                  ['Opening balance', formatCents(state.summary.openingBalanceCents)],
-                  ['Closing balance', formatCents(state.summary.closingBalanceCents)],
-                ] as [string, string | number | null | undefined][]).map(([label, value]) => (
-                  <div key={label} className="flex justify-between">
-                    <dt style={{ color: 'var(--color-muted-foreground)' }}>{label}</dt>
-                    <dd
-                      className="font-medium"
-                      style={{ color: label === 'Errors' && Number(value) > 0 ? 'var(--color-destructive)' : 'var(--color-foreground)' }}
+            </div>
+
+            {/* Right card: How import works */}
+            <div
+              className="rounded-[10px] border bg-[var(--color-panel)]"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              {/* Head */}
+              <div
+                className="border-b px-5 py-4"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <p className="text-[14px] font-semibold" style={{ color: 'var(--color-ink)' }}>
+                  How import works
+                </p>
+              </div>
+              {/* Body */}
+              <div className="px-5 py-2">
+                {[
+                  {
+                    n: 1,
+                    title: 'Parse CSV',
+                    desc: 'Standard Bank export columns mapped automatically.',
+                  },
+                  {
+                    n: 2,
+                    title: 'Detect duplicates',
+                    desc: 'Rows with the same date + amount + description are skipped.',
+                  },
+                  {
+                    n: 3,
+                    title: 'Apply aliases',
+                    desc: 'Description matches a supplier alias → supplier + default category linked.',
+                  },
+                  {
+                    n: 4,
+                    title: 'Stage for review',
+                    desc: 'New transactions land in "Needs review" until you approve them.',
+                  },
+                ].map(step => (
+                  <div
+                    key={step.n}
+                    className="grid items-start gap-3 py-[10px]"
+                    style={{
+                      gridTemplateColumns: '28px 1fr',
+                      borderBottom: `1px solid var(--color-border-2, var(--color-border))`,
+                    }}
+                  >
+                    <span
+                      className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[12px] font-semibold"
+                      style={{
+                        backgroundColor:
+                          'color-mix(in srgb,var(--color-accent) 12%,transparent)',
+                        color: 'var(--color-accent)',
+                      }}
                     >
-                      {String(value ?? '—')}
-                    </dd>
+                      {step.n}
+                    </span>
+                    <div>
+                      <p
+                        className="text-[13px] font-medium"
+                        style={{ color: 'var(--color-ink)' }}
+                      >
+                        {step.title}
+                      </p>
+                      <p
+                        className="mt-0.5 text-[12px]"
+                        style={{ color: 'var(--color-ink-3)' }}
+                      >
+                        {step.desc}
+                      </p>
+                    </div>
                   </div>
                 ))}
-              </dl>
-              <Separator className="my-4" />
-              <Button asChild variant="outline" size="sm" className="w-full">
-                <a href="/dashboard/transactions?reviewStatus=NEEDS_REVIEW">
-                  Review imported transactions →
-                </a>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Stage: preview ── */}
+          {stage === 'preview' && (
+            <div
+              className="mt-5 rounded-[10px] border bg-[var(--color-panel)]"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              {/* Head */}
+              <div
+                className="flex items-start justify-between border-b px-5 py-4"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <div>
+                  <p
+                    className="text-[14px] font-semibold"
+                    style={{ color: 'var(--color-ink)' }}
+                  >
+                    Preview · {fileName}
+                  </p>
+                  <p className="mt-0.5 text-[12px]" style={{ color: 'var(--color-ink-3)' }}>
+                    {previewRows.length} rows parsed ·{' '}
+                    <span style={{ color: 'var(--color-ok)' }}>{newCount} new</span> ·{' '}
+                    <span style={{ color: 'var(--color-warn)' }}>{dupCount} duplicate</span>
+                  </p>
+                </div>
+                <button
+                  onClick={resetToIdle}
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-[var(--color-panel-2)]"
+                  style={{ color: 'var(--color-ink-2)' }}
+                >
+                  <X className="h-4 w-4" />
+                  Cancel
+                </button>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr
+                      className="border-b"
+                      style={{
+                        backgroundColor: 'var(--color-panel-2)',
+                        borderColor: 'var(--color-border)',
+                      }}
+                    >
+                      <th
+                        scope="col"
+                        className="px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                        style={{ width: 110, color: 'var(--color-ink-3)' }}
+                      >
+                        Date
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                        style={{ color: 'var(--color-ink-3)' }}
+                      >
+                        Description
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                        style={{ color: 'var(--color-ink-3)' }}
+                      >
+                        Auto-matched supplier
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2.5 text-right text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                        style={{ width: 130, color: 'var(--color-ink-3)' }}
+                      >
+                        Amount
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-[.06em]"
+                        style={{ width: 110, color: 'var(--color-ink-3)' }}
+                      >
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((row, i) => (
+                      <tr
+                        key={i}
+                        className="border-b"
+                        style={{ borderColor: 'var(--color-border)' }}
+                      >
+                        <td
+                          className="px-3 py-2.5 font-mono"
+                          style={{
+                            color: 'var(--color-ink-2)',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {row.date}
+                        </td>
+                        <td
+                          className="px-3 py-2.5 font-medium"
+                          style={{ color: 'var(--color-ink)' }}
+                        >
+                          {row.desc}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span
+                            className="text-[12px] italic"
+                            style={{ color: 'var(--color-ink-4, var(--color-ink-3))' }}
+                          >
+                            No match
+                          </span>
+                        </td>
+                        <td
+                          className="px-3 py-2.5 text-right font-mono font-medium"
+                          style={{
+                            color:
+                              row.amount < 0
+                                ? 'var(--color-neg)'
+                                : 'var(--color-pos)',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {formatAmount(row.amount)}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                            style={{
+                              backgroundColor:
+                                'color-mix(in srgb,var(--color-ok) 15%,transparent)',
+                              color: 'var(--color-ok)',
+                            }}
+                          >
+                            <span
+                              className="inline-block h-[5px] w-[5px] rounded-full"
+                              style={{ backgroundColor: 'var(--color-ok)' }}
+                            />
+                            New
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div
+                className="flex items-center justify-end gap-3 border-t px-5 py-3"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <button
+                  onClick={resetToIdle}
+                  className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--color-panel-2)]"
+                  style={{ color: 'var(--color-ink-2)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={isPending || newCount === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-accent)' }}
+                >
+                  <ArrowDownToLine className="h-4 w-4" />
+                  {isPending ? 'Importing…' : `Import ${newCount} transactions`}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

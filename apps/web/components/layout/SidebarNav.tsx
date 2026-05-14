@@ -4,7 +4,12 @@ import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 
-export function SidebarNav() {
+interface SidebarNavProps {
+  navCounts?: { transactions?: number; receipts?: number }
+  period?: { label: string; status: 'open' | 'locked'; reviewed: number; total: number }
+}
+
+export function SidebarNav({ navCounts, period }: SidebarNavProps) {
   const pathname = usePathname()
   const activePath = pathname ?? '/dashboard'
   const [isOpen, setIsOpen] = useState(false)
@@ -13,7 +18,7 @@ export function SidebarNav() {
     <>
       {/* Desktop sidebar — hidden on mobile */}
       <div className="hidden md:block">
-        <Sidebar activePath={activePath} />
+        <Sidebar activePath={activePath} navCounts={navCounts} period={period} />
       </div>
 
       {/* Mobile: top bar with hamburger */}
@@ -46,7 +51,7 @@ export function SidebarNav() {
       <div
         className={`fixed inset-y-0 left-0 z-50 md:hidden transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <Sidebar activePath={activePath} onClose={() => setIsOpen(false)} />
+        <Sidebar activePath={activePath} onClose={() => setIsOpen(false)} navCounts={navCounts} period={period} />
       </div>
     </>
   )

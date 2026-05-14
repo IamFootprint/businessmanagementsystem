@@ -1,55 +1,180 @@
 @import "tailwindcss";
 @source "../**/*.{js,ts,jsx,tsx}";
 
+/* ─── Typography ─────────────────────────────────────────────── */
+@font-face { font-family: "GeistFallback"; src: local("Arial"); }
+
+/* ─── Theme tokens ───────────────────────────────────────────── */
 @theme {
-  /* Surfaces */
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
-  --color-card: #ffffff;
-  --color-card-foreground: #0f172a;
+  /* Font families */
+  --font-sans: var(--font-geist-sans), "GeistFallback", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Courier New", monospace;
 
-  /* Brand / Primary */
-  --color-primary: #4f46e5;
-  --color-primary-foreground: #ffffff;
-  --color-primary-hover: #4338ca;
+  /* PRIMARY ACCENT */
+  --color-accent:         #A16207;
+  --color-accent-2:       #FBF3E0;
+  --color-accent-ink:     #3F2D04;
+  --color-brand-gold:     #D4A017;
+  --color-brand-graphite: #3A3A3A;
 
-  /* Neutral */
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
-  --color-border: #e2e8f0;
-  --color-input: #e2e8f0;
-  --color-ring: #4f46e5;
+  /* NEUTRAL — CONTENT */
+  --color-bg:       #F4F5F7;
+  --color-panel:    #FFFFFF;
+  --color-panel-2:  #FAFBFC;
+  --color-border:   #E6E8EC;
+  --color-border-2: #EFF1F4;
+  --color-ink:      #0E1116;
+  --color-ink-2:    #4B5563;
+  --color-ink-3:    #8A91A0;
+  --color-ink-4:    #B6BCC7;
 
-  /* Semantic */
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #ffffff;
-  --color-success: #16a34a;
-  --color-success-foreground: #ffffff;
-  --color-warning: #d97706;
-  --color-warning-foreground: #ffffff;
+  /* SIDEBAR — DARK (default) */
+  --color-side-bg:       #0B1220;
+  --color-side-bg-2:     #131B2C;
+  --color-side-ink:      #E7EAF1;
+  --color-side-ink-2:    #8893AA;
+  --color-side-divider:  #1B2336;
 
-  /* Sidebar */
-  --color-sidebar: #0f172a;
-  --color-sidebar-foreground: #e2e8f0;
-  --color-sidebar-muted: #94a3b8;
-  --color-sidebar-active: #4f46e5;
-  --color-sidebar-active-fg: #ffffff;
-  --color-sidebar-hover: #1e293b;
+  /* STATUS */
+  --color-ok:          #15803D;
+  --color-ok-bg:       #DCFCE7;
+  --color-warn:        #B45309;
+  --color-warn-bg:     #FEF3C7;
+  --color-bad:         #B91C1C;
+  --color-bad-bg:      #FEE2E2;
+  --color-info:        #1D4ED8;
+  --color-info-bg:     #DBEAFE;
+  --color-neutral:     #475569;
+  --color-neutral-bg:  #E2E8F0;
 
-  /* Radius */
-  --radius: 0.5rem;
+  /* FINANCIAL */
+  --color-pos: #047857;
+  --color-neg: #B91C1C;
+
+  /* SHADOWS */
+  --shadow-sm: 0 1px 0 rgba(15,23,42,.04), 0 1px 2px rgba(15,23,42,.04);
+  --shadow-md: 0 4px 14px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+  --shadow-lg: 0 24px 60px rgba(15,23,42,.12), 0 2px 6px rgba(15,23,42,.06);
+
+  /* RADII */
+  --radius-sm:   6px;
+  --radius:      8px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-pill: 999px;
+
+  /* Legacy aliases so existing components keep working */
+  --color-background:         #F4F5F7;
+  --color-foreground:         #0E1116;
+  --color-card:               #FFFFFF;
+  --color-card-foreground:    #0E1116;
+  --color-primary:            #A16207;
+  --color-primary-foreground: #FFFFFF;
+  --color-primary-hover:      #92550A;
+  --color-muted:              #F4F5F7;
+  --color-muted-foreground:   #8A91A0;
+  --color-input:              #E6E8EC;
+  --color-ring:               #A16207;
+  --color-destructive:        #B91C1C;
+  --color-destructive-foreground: #FFFFFF;
+  --color-success:            #15803D;
+  --color-success-foreground: #FFFFFF;
+  --color-warning:            #B45309;
+  --color-warning-foreground: #FFFFFF;
+  --color-sidebar:            #0B1220;
+  --color-sidebar-foreground: #E7EAF1;
+  --color-sidebar-muted:      #8893AA;
+  --color-sidebar-active:     #A16207;
+  --color-sidebar-active-fg:  #FFFFFF;
+  --color-sidebar-hover:      #131B2C;
 }
 
+/* ─── Density tokens (default = regular) ─────────────────────── */
+:root {
+  --card-padding:  20px;
+  --page-gutter:   24px;
+  --row-height:    44px;
+}
+[data-density="compact"] {
+  --card-padding:  14px;
+  --page-gutter:   16px;
+  --row-height:    36px;
+}
+[data-density="comfy"] {
+  --card-padding:  24px;
+  --page-gutter:   28px;
+  --row-height:    52px;
+}
+
+/* ─── Sidebar light-mode override ───────────────────────────── */
+[data-sidebar="light"] {
+  --color-side-bg:      #FAFBFC;
+  --color-side-bg-2:    #F2F4F7;
+  --color-side-ink:     #0E1116;
+  --color-side-ink-2:   #6B7280;
+  --color-side-divider: #E6E8EC;
+  --color-sidebar:      #FAFBFC;
+  --color-sidebar-foreground: #0E1116;
+  --color-sidebar-muted: #6B7280;
+  --color-sidebar-hover: #F2F4F7;
+}
+
+/* ─── Base styles ────────────────────────────────────────────── */
 @layer base {
   * {
     box-sizing: border-box;
     border-color: var(--color-border);
   }
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--color-bg);
+    color: var(--color-ink);
     font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ─── Keyframe animations (top-level, outside any layer) ────────── */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ─── Tabular numerals utility ───────────────────────────────── */
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+
+  /* Status bar pulse animation */
+  .animate-status-pulse {
+    animation: status-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* Drawer slide-in */
+  .animate-drawer-in {
+    animation: drawer-in 200ms cubic-bezier(.2,.7,.2,1) forwards;
+  }
+
+  /* Toast fade-in */
+  .animate-toast-in {
+    animation: toast-in 150ms ease-out forwards;
   }
 }

@@ -26,3 +26,18 @@ export async function applyRulesAction(): Promise<{ applied: number; error?: str
     return { applied: 0, error: err instanceof Error ? err.message : 'Apply rules failed' }
   }
 }
+
+export async function bulkUpdateTransactionsAction(
+  ids: string[],
+  data: { categoryId?: string | null; reviewStatus?: string }
+): Promise<{ ok: boolean; updated: number; error?: string }> {
+  try {
+    const result = await apiRequestAuthenticated<{ updated: number }>('/transactions/bulk', {
+      method: 'PATCH',
+      body: { ids, ...data },
+    })
+    return { ok: true, updated: result.updated }
+  } catch (err) {
+    return { ok: false, updated: 0, error: err instanceof Error ? err.message : 'Bulk update failed' }
+  }
+}
