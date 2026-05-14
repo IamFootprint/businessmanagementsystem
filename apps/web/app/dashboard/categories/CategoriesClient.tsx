@@ -92,7 +92,8 @@ export function CategoriesClient({ grouped }: Props) {
   }
 
   async function toggleReceiptRequired(cat: Category) {
-    await updateCategoryAction(cat.id, { receiptRequired: !cat.receiptRequired })
+    const result = await updateCategoryAction(cat.id, { receiptRequired: !cat.receiptRequired })
+    if (!result.ok) toast(`Toggle failed: ${result.error ?? 'unknown error'}`)
   }
 
   const allTypes = Object.keys(TYPE_LABELS)

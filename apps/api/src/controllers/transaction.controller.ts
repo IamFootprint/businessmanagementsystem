@@ -206,6 +206,14 @@ export async function bulkUpdateTransactions(c: Context<AppEnv>) {
           : {}),
       },
     })
+    const afterSnap: Record<string, unknown> = {}
+    if (body.categoryId !== undefined) afterSnap.categoryId = body.categoryId
+    if (body.supplierId !== undefined) afterSnap.supplierId = body.supplierId
+    if (body.businessId !== undefined) afterSnap.businessId = body.businessId
+    if (body.transactionType !== undefined) afterSnap.transactionType = body.transactionType
+    if (body.reviewStatus !== undefined) afterSnap.reviewStatus = body.reviewStatus
+    void Promise.allSettled(body.ids.map(id => writeAuditEvent(id, user.id, {}, afterSnap, 'BULK_UPDATE')))
+
     return c.json({ updated: result.count })
   } catch {
     return c.json({ error: 'Internal server error' }, 500)

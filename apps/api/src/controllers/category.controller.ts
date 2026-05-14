@@ -55,6 +55,9 @@ export async function updateCategory(c: Context<AppEnv>) {
   type Body = { name?: string; receiptRequired?: boolean }
   const body: Body = await c.req.json<Body>().catch(() => ({}))
 
+  if (body.name !== undefined && !body.name.trim()) return c.json({ error: 'name cannot be empty' }, 400)
+  if (!body.name?.trim() && body.receiptRequired === undefined) return c.json({ error: 'No updatable fields provided' }, 400)
+
   try {
     const updated = await prisma.category.update({
       where: { id },

@@ -1,5 +1,6 @@
 'use client'
 import { useActionState, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { UploadCloud, X, CheckCircle2, AlertCircle, ArrowDownToLine } from 'lucide-react'
 import NextLink from 'next/link'
 import { importCsvAction, type ImportState } from './actions'
@@ -87,6 +88,7 @@ function formatAmount(amount: number): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ImportClient({ history }: ImportClientProps) {
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState<ImportState, FormData>(
     importCsvAction,
     null
@@ -108,6 +110,7 @@ export default function ImportClient({ history }: ImportClientProps) {
     if (state?.summary) {
       setStage('done')
       setLocalError(null)
+      router.refresh()
     } else if (state?.error) {
       setLocalError(state.error)
       setStage('idle')
