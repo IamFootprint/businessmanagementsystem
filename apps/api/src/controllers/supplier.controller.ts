@@ -74,3 +74,17 @@ export async function addSupplierAlias(c: Context<AppEnv>) {
     return c.json({ error: 'Alias pattern already exists for this supplier' }, 409)
   }
 }
+
+export async function removeAlias(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const { id, aliasId } = c.req.param()
+
+  const supplier = await prisma.supplier.findFirst({ where: { id, tenantId: user.tenantId } })
+  if (!supplier) return c.json({ error: 'Not found' }, 404)
+
+  const alias = await prisma.supplierAlias.findFirst({ where: { id: aliasId, supplierId: id } })
+  if (!alias) return c.json({ error: 'Alias not found' }, 404)
+
+  await prisma.supplierAlias.delete({ where: { id: aliasId } })
+  return c.json({ ok: true })
+}
