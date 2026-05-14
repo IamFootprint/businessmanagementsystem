@@ -43,10 +43,10 @@ export default async function HomePage() {
     apiRequestAuthenticated<{ meta: { total: number } }>('/transactions?reviewStatus=NEEDS_REVIEW&pageSize=1'),
   ])
 
-  const periods = periodsResult.status === 'fulfilled' ? periodsResult.value.periods : []
-  const transactions = txResult.status === 'fulfilled' ? txResult.value.transactions : []
-  const txTotal = txResult.status === 'fulfilled' ? txResult.value.meta.total : 0
-  const pendingCount = pendingResult.status === 'fulfilled' ? pendingResult.value.meta.total : 0
+  const periods = periodsResult.status === 'fulfilled' ? (periodsResult.value.periods ?? []) : []
+  const transactions = txResult.status === 'fulfilled' ? (txResult.value.transactions ?? []) : []
+  const txTotal = txResult.status === 'fulfilled' ? (txResult.value.meta?.total ?? 0) : 0
+  const pendingCount = pendingResult.status === 'fulfilled' ? (pendingResult.value.meta?.total ?? 0) : 0
 
   const openPeriod = periods.find(p => p.status === 'OPEN')
   const lockedPeriods = periods
