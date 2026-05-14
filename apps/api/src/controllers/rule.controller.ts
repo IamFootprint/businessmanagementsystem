@@ -60,6 +60,68 @@ export async function createRule(c: Context<AppEnv>) {
   }
 }
 
+export async function updateRule(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const { id } = c.req.param()
+
+  const existing = await prisma.transactionRule.findFirst({
+    where: { id, tenantId: user.tenantId },
+  })
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  type UpdateBody = {
+    name?: string
+    descriptionPattern?: string
+    categoryId?: string | null
+    supplierId?: string | null
+    businessId?: string | null
+    transactionType?: string | null
+    isPersonal?: boolean | null
+    receiptRequired?: boolean | null
+    trustedAutoReview?: boolean
+    priority?: number
+    active?: boolean
+  }
+  const body: UpdateBody = await c.req.json<UpdateBody>().catch(() => ({}))
+
+  try {
+    const updated = await prisma.transactionRule.update({
+      where: { id },
+      data: {
+        ...(body.name?.trim() ? { name: body.name.trim() } : {}),
+        ...(body.descriptionPattern?.trim()
+          ? { descriptionPattern: body.descriptionPattern.trim().toUpperCase() }
+          : {}),
+        ...(body.categoryId !== undefined ? { categoryId: body.categoryId } : {}),
+        ...(body.supplierId !== undefined ? { supplierId: body.supplierId } : {}),
+        ...(body.businessId !== undefined ? { businessId: body.businessId } : {}),
+        ...(body.transactionType !== undefined ? { transactionType: body.transactionType } : {}),
+        ...(body.isPersonal !== undefined ? { isPersonal: body.isPersonal } : {}),
+        ...(body.receiptRequired !== undefined ? { receiptRequired: body.receiptRequired } : {}),
+        ...(body.trustedAutoReview !== undefined ? { trustedAutoReview: body.trustedAutoReview } : {}),
+        ...(body.priority !== undefined ? { priority: body.priority } : {}),
+        ...(body.active !== undefined ? { active: body.active } : {}),
+      },
+    })
+    return c.json(updated)
+  } catch {
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+}
+
+export async function deleteRule(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const { id } = c.req.param()
+
+  const existing = await prisma.transactionRule.findFirst({
+    where: { id, tenantId: user.tenantId },
+  })
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await prisma.transactionRule.update({ where: { id }, data: { active: false } })
+  return c.json({ ok: true })
+}
+
 export async function applyRules(c: Context<AppEnv>) {
   const user = c.get('user')
 
