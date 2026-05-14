@@ -1,0 +1,8 @@
+name = "bms-api"
+main = "src/worker.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set via: wrangler secret put <KEY>)
+# DATABASE_URL       — Neon connection string
+# BLOB_READ_WRITE_TOKEN — Vercel Blob token (for receipt uploads)
