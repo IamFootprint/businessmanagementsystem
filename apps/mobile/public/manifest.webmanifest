@@ -1,0 +1,29 @@
+{
+  "name": "BMS — Kgolaentle Holdings",
+  "short_name": "BMS",
+  "description": "Business Management System for Kgolaentle Holdings",
+  "start_url": "/home",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080C14",
+  "theme_color": "#080C14",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "/brand/kh-logo-64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/kh-logo-128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/kh-logo-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

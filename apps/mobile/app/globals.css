@@ -1,0 +1,169 @@
+@import "tailwindcss";
+@source "../**/*.{js,ts,jsx,tsx}";
+
+/* ─── Design tokens (dark mobile theme) ──────────────────────── */
+@theme {
+  --font-display: var(--font-dm-serif), "Georgia", serif;
+  --font-sans:    var(--font-outfit), "Helvetica Neue", system-ui, sans-serif;
+
+  /* Surfaces */
+  --color-bg:         #080C14;
+  --color-surface:    #0F1521;
+  --color-surface-2:  #151E2E;
+  --color-surface-3:  #1A2338;
+
+  /* Borders */
+  --color-border:     #1E2A3E;
+  --color-border-2:   #253048;
+
+  /* Text */
+  --color-ink:        #F0F4FF;
+  --color-ink-2:      #8899B8;
+  --color-ink-3:      #4A5A7A;
+
+  /* Brand */
+  --color-accent:     #D4A017;
+  --color-accent-fg:  #080C14;
+
+  /* Financial */
+  --color-pos:        #34D399;
+  --color-neg:        #F87171;
+  --color-warn:       #FB923C;
+
+  /* Status */
+  --color-ok:         #34D399;
+  --color-bad:        #F87171;
+
+  /* Radii */
+  --radius-sm:   8px;
+  --radius:      12px;
+  --radius-md:   16px;
+  --radius-lg:   20px;
+  --radius-xl:   28px;
+  --radius-pill: 999px;
+}
+
+/* ─── Runtime-only vars (can't go in @theme) ─────────────────── */
+:root {
+  --accent-dim:      rgba(212, 160, 23, 0.14);
+  --accent-glow:     rgba(212, 160, 23, 0.07);
+  --pos-bg:          rgba(52, 211, 153, 0.10);
+  --neg-bg:          rgba(248, 113, 113, 0.10);
+  --surface-glass:   rgba(15, 21, 33, 0.88);
+  --bottom-nav-h:    64px;
+  --safe-bottom:     env(safe-area-inset-bottom, 0px);
+  --safe-top:        env(safe-area-inset-top, 0px);
+  --header-h:        56px;
+  --page-x:          16px;
+}
+
+/* ─── Base reset ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html {
+  background-color: #080C14;
+  color: #F0F4FF;
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Grain overlay (subtle texture) ────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+
+/* ─── Typography utilities ───────────────────────────────────── */
+.font-display { font-family: var(--font-display); }
+.font-sans    { font-family: var(--font-sans); }
+
+/* ─── Entrance animations ────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up    { animation: fade-up  0.4s ease both; }
+.animate-fade-in    { animation: fade-in  0.3s ease both; }
+.animate-scale-in   { animation: scale-in 0.35s ease both; }
+.animate-slide-up   { animation: slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.delay-1 { animation-delay: 60ms; }
+.delay-2 { animation-delay: 120ms; }
+.delay-3 { animation-delay: 180ms; }
+.delay-4 { animation-delay: 240ms; }
+.delay-5 { animation-delay: 300ms; }
+
+/* ─── Card styles ────────────────────────────────────────────── */
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.card-glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* ─── Gold accent border gradient ───────────────────────────── */
+.card-accent {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  position: relative;
+}
+.card-accent::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(212,160,23,0.5), rgba(212,160,23,0.08), rgba(212,160,23,0.25));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ─── Touch-friendly interactive states ─────────────────────── */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:active, a:active { opacity: 0.7; transition: opacity 0.1s; }
