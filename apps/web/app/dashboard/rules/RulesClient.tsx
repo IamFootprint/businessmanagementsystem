@@ -45,7 +45,7 @@ export function RulesClient({ rules, categories, suppliers }: Props) {
       if (result?.ok) {
         setShowForm(false)
         formRef.current?.reset()
-        toast({ title: 'Rule created' })
+        toast('Rule created')
       }
       return result
     },
@@ -56,9 +56,9 @@ export function RulesClient({ rules, categories, suppliers }: Props) {
     startApply(async () => {
       const result = await applyRulesAction()
       if (result.error) {
-        toast({ title: 'Apply failed', description: result.error, variant: 'destructive' })
+        toast(`Apply failed: ${result.error}`)
       } else {
-        toast({ title: `Applied ${result.applied} matches` })
+        toast(`Applied ${result.applied} matches`)
       }
     })
   }
@@ -68,9 +68,9 @@ export function RulesClient({ rules, categories, suppliers }: Props) {
     const result = await deleteRuleAction(id)
     setDeleting(null)
     if (result.ok) {
-      toast({ title: 'Rule disabled' })
+      toast('Rule disabled')
     } else {
-      toast({ title: 'Delete failed', description: result.error, variant: 'destructive' })
+      toast(`Delete failed: ${result.error ?? 'Unknown error'}`)
     }
   }
 
