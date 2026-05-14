@@ -51,10 +51,10 @@ export default async function TransactionsPage({
   let error = false
 
   try {
-    const res = await apiRequestAuthenticated<{ transactions: Transaction[]; meta: Meta }>(
+    const res = await apiRequestAuthenticated<{ data: Transaction[]; meta: Meta }>(
       `/transactions?${qs}`
     )
-    transactions = res.transactions ?? []
+    transactions = res.data ?? []
     meta = res.meta ?? { total: 0, page: 1, pageSize }
   } catch {
     error = true

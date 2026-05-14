@@ -39,12 +39,12 @@ function greeting(): string {
 export default async function HomePage() {
   const [periodsResult, txResult, pendingResult] = await Promise.allSettled([
     apiRequestAuthenticated<{ periods: Period[] }>('/periods'),
-    apiRequestAuthenticated<{ transactions: Transaction[]; meta: { total: number } }>('/transactions?pageSize=6'),
+    apiRequestAuthenticated<{ data: Transaction[]; meta: { total: number } }>('/transactions?pageSize=6'),
     apiRequestAuthenticated<{ meta: { total: number } }>('/transactions?reviewStatus=NEEDS_REVIEW&pageSize=1'),
   ])
 
   const periods = periodsResult.status === 'fulfilled' ? (periodsResult.value.periods ?? []) : []
-  const transactions = txResult.status === 'fulfilled' ? (txResult.value.transactions ?? []) : []
+  const transactions = txResult.status === 'fulfilled' ? (txResult.value.data ?? []) : []
   const txTotal = txResult.status === 'fulfilled' ? (txResult.value.meta?.total ?? 0) : 0
   const pendingCount = pendingResult.status === 'fulfilled' ? (pendingResult.value.meta?.total ?? 0) : 0
 
