@@ -64,8 +64,8 @@
 }
 
 html {
-  background-color: #080C14;
-  color: #F0F4FF;
+  background-color: var(--color-bg);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -155,6 +155,42 @@ body::before {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+}
+
+/* ─── Light mode (system preference) ────────────────────────── */
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Surfaces */
+    --color-bg:        #F4F5F7;
+    --color-surface:   #FFFFFF;
+    --color-surface-2: #FAFBFC;
+    --color-surface-3: #F0F2F5;
+
+    /* Borders */
+    --color-border:    #E6E8EC;
+    --color-border-2:  #EFF1F4;
+
+    /* Text */
+    --color-ink:       #0E1116;
+    --color-ink-2:     #4B5563;
+    --color-ink-3:     #8A91A0;
+
+    /* Financial (higher contrast on light bg) */
+    --color-pos:       #047857;
+    --color-neg:       #B91C1C;
+    --color-warn:      #C2410C;
+    --color-ok:        #047857;
+    --color-bad:       #B91C1C;
+
+    /* Runtime vars */
+    --pos-bg:          rgba(4, 120, 87, 0.08);
+    --neg-bg:          rgba(185, 28, 28, 0.08);
+    --surface-glass:   rgba(255, 255, 255, 0.90);
+    --accent-dim:      rgba(212, 160, 23, 0.12);
+    --accent-glow:     rgba(212, 160, 23, 0.05);
+  }
+
+  body::before { opacity: 0.025; }
 }
 
 /* ─── Touch-friendly interactive states ─────────────────────── */
