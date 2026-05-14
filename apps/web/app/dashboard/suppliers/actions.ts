@@ -1,4 +1,5 @@
 'use server'
+import { revalidatePath } from 'next/cache'
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
 
 export type SupplierState = { error?: string; ok?: boolean } | null
@@ -34,5 +35,20 @@ export async function addAliasAction(
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Add alias failed' }
+  }
+}
+
+export async function removeAliasAction(
+  supplierId: string,
+  aliasId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await apiRequestAuthenticated(`/suppliers/${supplierId}/aliases/${aliasId}`, {
+      method: 'DELETE',
+    })
+    revalidatePath('/dashboard/suppliers')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Remove failed' }
   }
 }

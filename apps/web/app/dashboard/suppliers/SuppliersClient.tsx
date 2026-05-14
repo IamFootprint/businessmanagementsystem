@@ -5,7 +5,7 @@ import { Building2, ExternalLink, Tag } from 'lucide-react'
 import { isSafeUrl } from '@/lib/url'
 import { useToast } from '@/lib/use-toast'
 import { Drawer } from '@/components/ui/drawer'
-import { addAliasAction } from './actions'
+import { addAliasAction, removeAliasAction } from './actions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,8 +57,7 @@ function AliasChip({ pattern, onRemove }: { pattern: string; onRemove?: () => vo
       {onRemove && (
         <button
           onClick={onRemove}
-          disabled
-          className="opacity-40 ml-0.5 leading-none"
+          className="ml-0.5 leading-none hover:opacity-70 transition-opacity"
           aria-label={`Remove alias ${pattern}`}
         >
           ×
@@ -296,8 +295,9 @@ function SupplierDrawer({
             <AliasChip
               key={a.id}
               pattern={a.pattern}
-              onRemove={() => {
-                // stub — removeAliasAction not implemented
+              onRemove={async () => {
+                const result = await removeAliasAction(supplier.id, a.id)
+                if (!result.ok) toast(`Remove failed: ${result.error ?? 'Unknown error'}`)
               }}
             />
           ))}
