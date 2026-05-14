@@ -45,7 +45,7 @@ export default async function ReportsPage() {
 
   try {
     const res = await apiRequestAuthenticated<{ periods: Period[] }>('/periods')
-    periods = res.periods.sort((a, b) =>
+    periods = (res.periods ?? []).sort((a, b) =>
       b.year !== a.year ? b.year - a.year : b.month - a.month
     )
   } catch {
