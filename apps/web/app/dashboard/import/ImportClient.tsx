@@ -99,6 +99,7 @@ export default function ImportClient({ history }: ImportClientProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [bankAccountId, setBankAccountId] = useState('seed-stdbank-main')
   const [localError, setLocalError] = useState<string | null>(null)
+  const [isXlsx, setIsXlsx] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -117,6 +118,14 @@ export default function ImportClient({ history }: ImportClientProps) {
     setFileName(file.name)
     setFileBlob(file)
     setLocalError(null)
+    const name = file.name.toLowerCase()
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      setIsXlsx(true)
+      setPreviewRows([])
+      setStage('preview')
+      return
+    }
+    setIsXlsx(false)
     const reader = new FileReader()
     reader.onerror = () => setLocalError('Could not read the file. Please try again.')
     reader.onload = e => {
@@ -169,6 +178,7 @@ export default function ImportClient({ history }: ImportClientProps) {
     setFileName('')
     setFileBlob(null)
     setLocalError(null)
+    setIsXlsx(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -493,9 +503,15 @@ export default function ImportClient({ history }: ImportClientProps) {
                     Preview · {fileName}
                   </p>
                   <p className="mt-0.5 text-[12px]" style={{ color: 'var(--color-ink-3)' }}>
-                    {previewRows.length} rows parsed ·{' '}
-                    <span style={{ color: 'var(--color-ok)' }}>{newCount} new</span> ·{' '}
-                    <span style={{ color: 'var(--color-warn)' }}>{dupCount} duplicate</span>
+                    {isXlsx
+                      ? 'Excel file — rows will be counted after upload'
+                      : `${previewRows.length} rows parsed · `}
+                    {!isXlsx && (
+                      <>
+                        <span style={{ color: 'var(--color-ok)' }}>{newCount} new</span> ·{' '}
+                        <span style={{ color: 'var(--color-warn)' }}>{dupCount} duplicate</span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <button
@@ -634,12 +650,12 @@ export default function ImportClient({ history }: ImportClientProps) {
                 </button>
                 <button
                   onClick={handleConfirm}
-                  disabled={isPending || newCount === 0}
+                  disabled={isPending || (!isXlsx && newCount === 0)}
                   className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-[13px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
                   style={{ backgroundColor: 'var(--color-accent)' }}
                 >
                   <ArrowDownToLine className="h-4 w-4" />
-                  {isPending ? 'Importing…' : `Import ${newCount} transactions`}
+                  {isPending ? 'Importing…' : isXlsx ? 'Import Excel file' : `Import ${newCount} transactions`}
                 </button>
               </div>
             </div>

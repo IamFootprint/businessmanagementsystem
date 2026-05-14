@@ -296,8 +296,13 @@ function SupplierDrawer({
               key={a.id}
               pattern={a.pattern}
               onRemove={async () => {
-                const result = await removeAliasAction(supplier.id, a.id)
-                if (!result.ok) toast(`Remove failed: ${result.error ?? 'Unknown error'}`)
+                const aliasId = a.id
+                setSupplier(prev => prev ? { ...prev, aliases: prev.aliases.filter(x => x.id !== aliasId) } : prev)
+                const result = await removeAliasAction(supplier.id, aliasId)
+                if (!result.ok) {
+                  setSupplier(prev => prev ? { ...prev, aliases: [...prev.aliases, a] } : prev)
+                  toast(`Remove failed: ${result.error ?? 'Unknown error'}`)
+                }
               }}
             />
           ))}
