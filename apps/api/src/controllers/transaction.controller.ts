@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { prisma } from '@bms/db'
 import type { AppEnv } from '../types'
 import type { ReviewStatus, TransactionType, Prisma } from '@bms/db'
+import { writeAuditEvent } from '../lib/audit'
 
 export async function listTransactions(c: Context<AppEnv>) {
   const user = c.get('user')
@@ -111,10 +112,56 @@ export async function updateTransaction(c: Context<AppEnv>) {
         supplier: { select: { id: true, name: true } },
       },
     })
+
+    // Snapshot before state (from previously fetched `transaction`)
+    const before = {
+      categoryId: transaction.categoryId ?? null,
+      supplierId: transaction.supplierId ?? null,
+      businessId: transaction.businessId ?? null,
+      transactionType: transaction.transactionType,
+      isPersonal: transaction.isPersonal,
+      notes: transaction.notes ?? null,
+      reviewStatus: transaction.reviewStatus,
+    }
+    const afterSnap: Record<string, unknown> = {}
+    if (body.categoryId !== undefined) afterSnap.categoryId = body.categoryId
+    if (body.supplierId !== undefined) afterSnap.supplierId = body.supplierId
+    if (body.businessId !== undefined) afterSnap.businessId = body.businessId
+    if (body.transactionType !== undefined) afterSnap.transactionType = body.transactionType
+    if (body.isPersonal !== undefined) afterSnap.isPersonal = body.isPersonal
+    if (body.notes !== undefined) afterSnap.notes = body.notes
+    if (body.reviewStatus !== undefined) afterSnap.reviewStatus = body.reviewStatus
+
+    await writeAuditEvent(id, user.id, before, afterSnap, 'UPDATE')
     return c.json(updated)
   } catch {
     return c.json({ error: 'Internal server error' }, 500)
   }
+}
+
+export async function getTransactionAudit(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const { id } = c.req.param()
+
+  const transaction = await prisma.transaction.findUnique({
+    where: { id },
+    include: { bankAccount: { select: { tenantId: true } } },
+  })
+
+  if (!transaction || transaction.bankAccount.tenantId !== user.tenantId) {
+    return c.json({ error: 'Not found' }, 404)
+  }
+
+  const events = await prisma.transactionAuditEvent.findMany({
+    where: { transactionId: id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: {
+      actor: { select: { name: true, email: true } },
+    },
+  })
+
+  return c.json({ data: events })
 }
 
 export async function bulkUpdateTransactions(c: Context<AppEnv>) {
