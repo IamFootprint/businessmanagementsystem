@@ -9,6 +9,7 @@ import { registerRuleRoutes } from './rule.routes'
 import { registerReceiptRoutes } from './receipt.routes'
 import { registerPeriodRoutes } from './period.routes'
 import { registerNotifyRoutes } from './notify.routes'
+import { registerCategoryRoutes } from './category.routes'
 
 export function registerRoutes(app: Hono<AppEnv>) {
   app.get('/health', getHealth)
@@ -21,4 +22,5 @@ export function registerRoutes(app: Hono<AppEnv>) {
   registerReceiptRoutes(app)
   registerPeriodRoutes(app)
   registerNotifyRoutes(app)
+  registerCategoryRoutes(app)
 }
