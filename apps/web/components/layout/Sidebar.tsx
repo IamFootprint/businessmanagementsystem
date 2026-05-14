@@ -11,6 +11,7 @@ import {
   LogOut,
   X,
   ChevronDown,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/transactions', label: 'Transactions', icon: ListFilter,      countKey: 'transactions' as const },
   { href: '/dashboard/import',       label: 'Import',       icon: ArrowUpFromLine },
   { href: '/dashboard/suppliers',    label: 'Suppliers',    icon: Building2 },
+  { href: '/dashboard/rules',        label: 'Rules',        icon: Zap },
   { href: '/dashboard/receipts',     label: 'Receipts',     icon: Receipt,         countKey: 'receipts' as const },
   { href: '/dashboard/reports',      label: 'Reports',      icon: BarChart3 },
 ]
