@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
+import { prisma } from '@bms/db'
 import { parseStandardBankCsv } from '../lib/csv-parser'
 import { runImport } from '../services/import.service'
 
@@ -55,5 +56,23 @@ export async function createImport(c: Context<AppEnv>) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Import failed'
     return c.json({ error: msg }, 500)
+  }
+}
+
+export async function listImports(c: Context<AppEnv>) {
+  const user = c.get('user')
+  try {
+    const imports = await prisma.statementImport.findMany({
+      where: { bankAccount: { tenantId: user.tenantId } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        bankAccount: { select: { nickname: true, bankName: true } },
+        importedBy: { select: { name: true } },
+      },
+    })
+    return c.json({ data: imports })
+  } catch {
+    return c.json({ error: 'Internal server error' }, 500)
   }
 }
