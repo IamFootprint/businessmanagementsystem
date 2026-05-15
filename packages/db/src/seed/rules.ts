@@ -35,11 +35,15 @@ const SUPPLIERS: SupplierDef[] = [
   { name: 'VHH Group',
     website: 'https://www.fastway.co.za',
     aliases: ['VHH GROUP', 'NETCASH071VHH', 'CF WEEKLY PAYME'],
-    notes: 'Master franchisee of Fastway Couriers SA (national small-parcel / e-commerce delivery network). Pays weekly franchise income via EFT and Netcash. Office at 9 Delta Street, Rustenburg. Note: Fastway SA was acquired in Aug 2022 by City Logistics (Pty) Ltd + Clearwater Capital — "VHH Group" may be an intermediate holdco or merchant-of-record. Confirm with Fastway/VHH directly if invoicing entity matters for VAT.' },
+    notes: 'VHH Group — Fastway Rustenburg Regional Franchisor. Kgolaentle Holdings operates "Fastway Sun City" as a sub-franchise under VHH Group. All revenue from VHH Group is the Fastway Sun City franchise income (weekly payouts via EFT and Netcash). Fastway national network is owned by City Logistics + Clearwater Capital since Aug 2022; VHH is the regional franchisor layer.' },
   { name: 'Transnatal Glass Factory',
     website: 'https://transnatal.co.za',
     aliases: ['TRANS NATAL', 'TRANS-NATAL', 'C*TRANS NATAL', 'C*TRANS-NATAL'],
-    notes: 'Glassware / homeware wholesaler — NOT a courier despite the name. Sells glassware, tableware, vases, candle holders, decorative homewares (Duralex, RCR, Bohemia, Lav brands). Operates own Gauteng delivery + transport-company despatch. Located 185 Voortrekker Road, Factoria, Krugersdorp 1739. *Likely held over from the 2023 e-commerce/Takealot era when Kgolaentle sold home decor.* Verify whether these still serve a business purpose.' },
+    notes: 'Glassware / homeware wholesaler — supplier for the Opulent Homeware business wing (now wound down). 185 Voortrekker Road, Factoria, Krugersdorp 1739. Stocks glassware, tableware, vases, candle holders, decorative homewares (Duralex, RCR, Bohemia, Lav). Historical purchases — Opulent Homeware sold via Shopify + Takealot from 2023 through ~mid-2025. Mark as legacy/inactive once final invoices are settled.' },
+  { name: 'Seeff JHB North West',
+    website: 'https://www.seeff.com',
+    aliases: ['SEEFF JHB', 'SEEFF JHB NORTH WEST'],
+    notes: 'Seeff Properties — national real estate agency, JHB North West branch (covers Rustenburg/NW area). Handles the rental property for Opulent Beauty (salon premises). Monthly rent amounts vary; some months include deposit/once-off payments. Founded 1964. ~220 branches across SA and southern Africa. Exclusive SA associate of Hamptons International (UK).' },
 
   // ── Insurance ───────────────────────────────────────────────────────────────
   { name: 'Bidvest Insurance',
@@ -141,7 +145,7 @@ const SUPPLIERS: SupplierDef[] = [
   // ── Property ────────────────────────────────────────────────────────────────
   { name: 'J Govender (Opulent Rent)',
     aliases: ['J GOVENDER'],
-    notes: 'Private landlord. Fixed R8,800/month rent payment. Reference "OPULENT RENT" suggests this may be for the "Opulent" beauty/homeware business premises (see separate Opulent Beauty / Opulent Homeware business entities). Confirm whether residential or commercial.' },
+    notes: 'Private landlord — rental for Opulent Beauty salon premises. Fixed R8,800/month. Direct EFT (not via estate agent). Coexists with Seeff (also Opulent Beauty rental) — either same property over time or two separate rental agreements; clarify if both still active.' },
 
   // ── Office equipment ────────────────────────────────────────────────────────
   { name: 'TB Machines',
@@ -258,15 +262,15 @@ const RULES: RuleDef[] = [
     category: 'Vehicle Maintenance', supplier: 'Glasfit',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
-  // ─── HOMEWARE / INVENTORY (legacy from 2023 e-commerce era) ─────────────────
-  // Originally mis-classified as a courier — actually Transnatal Glass Factory, a homeware wholesaler.
-  // trustedAutoReview is FALSE here because the business no longer sells homeware — these need manual review.
-  { name: 'Transnatal Glass Factory (homeware wholesale)', descriptionPattern: 'TRANS-NATAL',
-    category: 'Cost of Sales / Materials', supplier: 'Transnatal Glass Factory',
-    transactionType: 'EXPENSE', trustedAutoReview: false, priority: P.SPECIFIC_MERCHANT },
-  { name: 'Trans Natal (no-dash variant)', descriptionPattern: 'C*TRANS NATAL',
-    category: 'Cost of Sales / Materials', supplier: 'Transnatal Glass Factory',
-    transactionType: 'EXPENSE', trustedAutoReview: false, priority: P.SPECIFIC_MERCHANT },
+  // ─── OPULENT HOMEWARE — Inventory (legacy wing, now wound down) ─────────────
+  // Transnatal Glass Factory supplied the Opulent Homeware business wing.
+  // Linked to opulent-homeware business so historical P&L is attributed correctly.
+  { name: 'Transnatal Glass Factory (Opulent Homeware inventory)', descriptionPattern: 'TRANS-NATAL',
+    category: 'Cost of Sales / Materials', supplier: 'Transnatal Glass Factory', business: 'opulent-homeware',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'Trans Natal — no-dash variant (Opulent Homeware)', descriptionPattern: 'C*TRANS NATAL',
+    category: 'Cost of Sales / Materials', supplier: 'Transnatal Glass Factory', business: 'opulent-homeware',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
   // ─── COMPLIANCE & LEGAL ────────────────────────────────────────────────────
   { name: 'RTMC — Vehicle Licence', descriptionPattern: 'RTMC ',
@@ -315,9 +319,12 @@ const RULES: RuleDef[] = [
     category: 'Software / Subscriptions', supplier: 'MyAppointment SA',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
-  // ─── RENT ──────────────────────────────────────────────────────────────────
-  { name: 'J Govender — Opulent Rent', descriptionPattern: 'J GOVENDER',
-    category: 'Rent / Premises', supplier: 'J Govender (Opulent Rent)',
+  // ─── RENT (Opulent Beauty premises) ────────────────────────────────────────
+  { name: 'J Govender — Opulent Beauty Rent', descriptionPattern: 'J GOVENDER',
+    category: 'Rent / Premises', supplier: 'J Govender (Opulent Rent)', business: 'opulent-beauty',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'Seeff — Opulent Beauty Rental', descriptionPattern: 'SEEFF JHB',
+    category: 'Rent / Premises', supplier: 'Seeff JHB North West', business: 'opulent-beauty',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
   // ─── SALARIES ──────────────────────────────────────────────────────────────
@@ -401,6 +408,18 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
   const warnings: string[] = []
 
   const tenant = await prisma.tenant.findUniqueOrThrow({ where: { slug: TENANT_SLUG } })
+
+  // Remove orphan rules from earlier seed iterations (names changed)
+  // Safe because no transactions reference them yet — these were only just seeded today.
+  const ORPHAN_RULE_NAMES = [
+    'J Govender — Opulent Rent',
+    'Trans Natal (no-dash variant)',
+    'Trans-Natal Express (sub-contracted courier)',
+    'Transnatal Glass Factory (homeware wholesale)',
+  ]
+  await prisma.transactionRule.deleteMany({
+    where: { tenantId: tenant.id, name: { in: ORPHAN_RULE_NAMES } },
+  })
 
   // Rename legacy "Trans-Natal Express" → "Transnatal Glass Factory" (research correction)
   // The original name was wrong — this is a homeware wholesaler, not a courier.
