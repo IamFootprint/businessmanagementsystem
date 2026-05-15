@@ -43,7 +43,7 @@ const SUPPLIERS: SupplierDef[] = [
   { name: 'Seeff JHB North West',
     website: 'https://www.seeff.com',
     aliases: ['SEEFF JHB', 'SEEFF JHB NORTH WEST'],
-    notes: 'Seeff Properties — national real estate agency, JHB North West branch (covers Rustenburg/NW area). Handles the rental property for Opulent Beauty (salon premises). Monthly rent amounts vary; some months include deposit/once-off payments. Founded 1964. ~220 branches across SA and southern Africa. Exclusive SA associate of Hamptons International (UK).' },
+    notes: 'Seeff Properties (JHB North West branch) — CURRENT landlord/managing agent for the Opulent Beauty salon premises. First payment Jan 2026 (replaced J Govender after salon relocation). Larger January payments include deposit + first-month rent; ongoing monthly variable. Seeff Property Group founded 1964; ~220 branches; exclusive SA associate of Hamptons International (UK). Branch covers Rustenburg / NW area.' },
 
   // ── Insurance ───────────────────────────────────────────────────────────────
   { name: 'Bidvest Insurance',
@@ -145,7 +145,7 @@ const SUPPLIERS: SupplierDef[] = [
   // ── Property ────────────────────────────────────────────────────────────────
   { name: 'J Govender (Opulent Rent)',
     aliases: ['J GOVENDER'],
-    notes: 'Private landlord — rental for Opulent Beauty salon premises. Fixed R8,800/month. Direct EFT (not via estate agent). Coexists with Seeff (also Opulent Beauty rental) — either same property over time or two separate rental agreements; clarify if both still active.' },
+    notes: 'Private landlord — PREVIOUS Opulent Beauty salon premises (vacated ~Jan 2026). Fixed R8,800/month direct EFT. Last payment recorded 30 Dec 2025. Replaced by Seeff JHB North West when the salon relocated. Rule kept active for back-fill of historical 2025 imports.' },
 
   // ── Office equipment ────────────────────────────────────────────────────────
   { name: 'TB Machines',
