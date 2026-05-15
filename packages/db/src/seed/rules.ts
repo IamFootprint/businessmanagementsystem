@@ -29,31 +29,125 @@ const NEW_CATEGORIES: Array<{ name: string; categoryType: CategoryType; receiptR
 ]
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
-type SupplierDef = { name: string; website?: string; aliases: string[] }
+type SupplierDef = { name: string; website?: string; aliases: string[]; notes?: string }
 const SUPPLIERS: SupplierDef[] = [
-  { name: 'VHH Group',                website: 'https://fastway.co.za',         aliases: ['VHH GROUP'] },
-  { name: 'Bidvest Insurance',        website: 'https://bidvestinsurance.co.za',aliases: ['BDG/BUSINS'] },
-  { name: 'Global Tlayang Filling',                                              aliases: ['GLOBAL TLAYANG'] },
-  { name: 'Global Boikhutso Filling',                                            aliases: ['GLOBAL BOIKHUTSO'] },
-  { name: 'River Service Station',                                               aliases: ['RIVER SERVICE STATION'] },
-  { name: 'Engen Mankwe',             website: 'https://engen.co.za',            aliases: ['ENGEN MANKWE'] },
-  { name: 'Engen Sun City',           website: 'https://engen.co.za',            aliases: ['ENGEN SUN CITY'] },
-  { name: 'Shalom Petro Wash',                                                   aliases: ['SHALOM PETRO'] },
-  { name: 'Obaro Rustenburg',                                                    aliases: ['OBARO RUSTENBURG'] },
-  { name: 'Die Kraal Filling',                                                   aliases: ['DIE KRAAL FILLING'] },
-  { name: 'CNN Korean Parts',                                                    aliases: ['CNN KOREAN'] },
-  { name: 'Glasfit',                  website: 'https://glasfit.co.za',          aliases: ['GLASFIT'] },
-  { name: 'Trans-Natal Express',                                                 aliases: ['TRANS NATAL', 'TRANS-NATAL'] },
-  { name: 'RTMC',                     website: 'https://rtmc.co.za',             aliases: ['RTMC '] },
-  { name: 'CIPC',                     website: 'https://cipc.co.za',             aliases: ['CIPC'] },
-  { name: 'Department of Labour',                                                aliases: ['DEPT OF LABOUR'] },
-  { name: 'Vox Telecom',              website: 'https://voxtelecom.co.za',       aliases: ['VOX TELECOMMS'] },
-  { name: 'Telkom Mobile',            website: 'https://telkom.co.za',           aliases: ['TELKOM MOBILE'] },
-  { name: 'GoDaddy',                  website: 'https://godaddy.com',            aliases: ['GODADDY'] },
-  { name: 'Wix.com',                  website: 'https://wix.com',                aliases: ['WIX.COM'] },
-  { name: 'Meta (Facebook Ads)',      website: 'https://facebook.com',           aliases: ['FACEBK'] },
-  { name: 'Jetline',                  website: 'https://jetline.co.za',          aliases: ['JETLINE'] },
-  { name: 'J Govender (Opulent Rent)',                                           aliases: ['J GOVENDER'] },
+  // ── Logistics / Courier ─────────────────────────────────────────────────────
+  { name: 'VHH Group',
+    website: 'https://www.fastway.co.za',
+    aliases: ['VHH GROUP', 'NETCASH071VHH', 'CF WEEKLY PAYME'],
+    notes: 'Master franchisee of Fastway Couriers SA (national small-parcel / e-commerce delivery network). Pays weekly franchise income via EFT and Netcash. Office at 9 Delta Street, Rustenburg. Note: Fastway SA was acquired in Aug 2022 by City Logistics (Pty) Ltd + Clearwater Capital — "VHH Group" may be an intermediate holdco or merchant-of-record. Confirm with Fastway/VHH directly if invoicing entity matters for VAT.' },
+  { name: 'Transnatal Glass Factory',
+    website: 'https://transnatal.co.za',
+    aliases: ['TRANS NATAL', 'TRANS-NATAL', 'C*TRANS NATAL', 'C*TRANS-NATAL'],
+    notes: 'Glassware / homeware wholesaler — NOT a courier despite the name. Sells glassware, tableware, vases, candle holders, decorative homewares (Duralex, RCR, Bohemia, Lav brands). Operates own Gauteng delivery + transport-company despatch. Located 185 Voortrekker Road, Factoria, Krugersdorp 1739. *Likely held over from the 2023 e-commerce/Takealot era when Kgolaentle sold home decor.* Verify whether these still serve a business purpose.' },
+
+  // ── Insurance ───────────────────────────────────────────────────────────────
+  { name: 'Bidvest Insurance',
+    website: 'https://bidvestinsurance.co.za',
+    aliases: ['BDG/BUSINS', 'BDG/BUSINS819045252'],
+    notes: 'Bidvest Insurance Limited (subsidiary of The Bidvest Group Ltd) — authorised FSP for short-term insurance. Reference 819045252 is the policy number. Premium R2,989/month debit order on last day of month. Vehicle/fleet insurance product. HQ in Umhlanga Rocks, KwaZulu-Natal.' },
+
+  // ── Fuel stations ───────────────────────────────────────────────────────────
+  { name: 'Global Tlayang Filling',
+    website: 'https://www.globaloil.co.za',
+    aliases: ['GLOBAL TLAYANG'],
+    notes: 'Independent filling station under the Global Oil brand (100% black-owned SA fuel retail). Located in the Rustenburg/Mogwase area, services platinum-belt traffic. Minimal web presence (Hellopeter listing only). Primary fuel supplier — used weekly.' },
+  { name: 'Global Boikhutso Filling',
+    website: 'https://www.globaloil.co.za',
+    aliases: ['GLOBAL BOIKHUTSO'],
+    notes: 'Global Oil-branded filling station in Mogwase (Boikhutso is the Mogwase township, North West — not Hammanskraal). Possibly the same site as "Exel Boikhutso" at 1401 Tlhantlhagane St, Mogwase 0314. Independent dealer.' },
+  { name: 'River Service Station',
+    aliases: ['RIVER SERVICE STATION'],
+    notes: 'Filling station — "MOGWA" suffix on some statement entries suggests Mogwase/Pilanesberg area (the "JHB" prefix may be the merchant settlement city, not the physical address). No dedicated web presence. Used monthly.' },
+  { name: 'Engen Mankwe',
+    website: 'https://www.engen.co.za',
+    aliases: ['ENGEN MANKWE'],
+    notes: 'Engen Mankwe Convenience Centre — 24-hour Engen forecourt with shop, bakery, Debonairs and Steers QSR. Cnr President Avenue & R510, Mogwase, North West. Phone +27 13 751 2620. Sits on the R510 between Rustenburg and Thabazimbi.' },
+  { name: 'Engen Sun City',
+    website: 'https://www.engen.co.za',
+    aliases: ['ENGEN SUN CITY'],
+    notes: 'Engen-branded 24-hour forecourt servicing the Sun City resort area; possibly also Engen Sun Village in the adjacent shopping complex. R556, Sun City / Pilanesberg, North West, 0316. Phone +27 14 552 1295.' },
+  { name: 'Shalom Petro Wash',
+    aliases: ['SHALOM PETRO'],
+    notes: 'TotalEnergies-branded filling station (trading as "Total Shalom Petro Wash") with car wash, Buzzcafe convenience store and Shalom MBT bay (tyres/batteries/exhausts). 54 Bosch Street (cnr Bosch & Zendeling), Rustenburg 0299. Phone +27 14 597 0913.' },
+  { name: 'Obaro Rustenburg',
+    website: 'https://obaro.co.za/archives/obaro_branch/obaro-rustenburg',
+    aliases: ['OBARO RUSTENBURG'],
+    notes: 'Obaro (Pty) Ltd — Rustenburg branch. Agricultural co-op / retail chain with 24-hour fuel forecourt on-site. Sells irrigation, hardware, animal feed, seed, fertiliser, pet products, farm spares. 47 Lucas Street, Rustenburg. Phone +27 14 592 2328. One of 27 Obaro branches across northern SA.' },
+  { name: 'Die Kraal Filling',
+    aliases: ['DIE KRAAL FILLING'],
+    notes: 'Small independent filling station in the Beestekraal area (north of Brits, on the road/rail corridor to Thabazimbi). No verifiable online listing. Used occasionally for long-haul fills.' },
+  { name: 'Pilanesberg Motors (Total)',
+    aliases: ['PILANESBURG MOTORS', 'PILANESBERG MOTORS'],
+    notes: 'TotalEnergies-branded filling station — NOT a motor dealership despite the name. Rustenburg/Pilanesberg area. Often misspelled as "Pilanesburg" on bank statements. Reclassify any past Vehicle Maintenance categorisations to Fuel & Oil.' },
+
+  // ── Vehicle parts / services ────────────────────────────────────────────────
+  { name: 'CNN Korean Parts',
+    aliases: ['CNN KOREAN'],
+    notes: 'Korean auto parts retailer specialising in Kia and Hyundai (new + second-hand original / quality-generic). 57 Molen Street, Rustenburg 0300. Hours Mon-Fri 07:30-17:30, Sat 08:00-13:00. Facebook only (no website): https://www.facebook.com/CnnKoreanParts/' },
+  { name: 'Glasfit',
+    website: 'https://www.glasfit.com',
+    aliases: ['GLASFIT'],
+    notes: 'Glasfit (Pty) Ltd — national windscreen specialists (115+ fitment centres). Chip repair, full replacement, side/rear windows, smash-and-grab film, tinting, vehicle inspections. Founded 1989. Arrive Alive road-safety partner.' },
+
+  // ── Government / Compliance ─────────────────────────────────────────────────
+  { name: 'RTMC',
+    website: 'https://www.rtmc.co.za',
+    aliases: ['RTMC '],
+    notes: 'Road Traffic Management Corporation — government agency under the Department of Transport. Runs the eNaTIS online platform for vehicle licence/registration. Eco Origin Office Park, Block F, 349 Witch-Hazel Street, Highveld Ext 79, Centurion. Operational since April 2005.' },
+  { name: 'CIPC',
+    website: 'https://www.cipc.co.za',
+    aliases: ['CIPC'],
+    notes: 'Companies and Intellectual Property Commission (Department of Trade, Industry and Competition). Handles company/CC/co-op registration, trademarks, patents, designs, copyrights, and annual returns. BizPortal is the digital services entry point. the dtic Campus, Block F, 77 Meintjies Street, Sunnyside, Pretoria. Formed 1 May 2011.' },
+  { name: 'Department of Labour',
+    website: 'https://www.labour.gov.za',
+    aliases: ['DEPT OF LABOUR'],
+    notes: 'Department of Employment and Labour — administers the UIF (Unemployment Insurance Fund). UIF funded by 1% employee + 1% employer contributions, submitted monthly via uFiling (https://ufiling.labour.gov.za/uif/) or SARS EMP201.' },
+
+  // ── Telecoms ────────────────────────────────────────────────────────────────
+  { name: 'Vox Telecom',
+    website: 'https://www.vox.co.za',
+    aliases: ['VOX TELECOMMS'],
+    notes: 'Vox Telecommunications (Pty) Ltd — one of SA\'s largest telcos. Fibre (home + business), VoIP, cloud PBX, cloud hosting, managed IT across 7 FNO networks. Owns Frogfoot Networks. HQ Johannesburg. Founded 1998, ~1,500 employees. Recurring R500-600/month for VoIP line.' },
+  { name: 'Telkom Mobile',
+    website: 'https://www.telkom.co.za',
+    aliases: ['TELKOM MOBILE'],
+    notes: 'Telkom SA SOC Ltd (Mobile division) — 3rd-largest MNO in SA behind Vodacom and MTN (~24m subscribers). Mobile, fixed-line, fibre, ADSL, 5G FWA. HQ Centurion. Mobile launched 2010 as 8ta, rebranded to Telkom Mobile. Partially state-owned.' },
+
+  // ── Software / Subscriptions ────────────────────────────────────────────────
+  { name: 'GoDaddy',
+    website: 'https://www.godaddy.com',
+    aliases: ['GODADDY', 'DNH*GODADDY'],
+    notes: 'GoDaddy Inc. (NYSE: GDDY) — world\'s largest domain registrar (~62m domains, 20m+ customers). Domain registration, hosting, website builder, email, SSL, SMB SaaS. HQ Tempe, Arizona, USA. Founded 1997 by Bob Parsons. Multiple monthly charges suggest multiple domains under management.' },
+  { name: 'Wix.com',
+    website: 'https://www.wix.com',
+    aliases: ['WIX.COM'],
+    notes: 'Wix.com Ltd (NASDAQ: WIX) — cloud drag-and-drop website builder with hosting, eCommerce, marketing, and AI site-generation. HQ 40 Namal Tel Aviv Street, Tel Aviv-Yafo, Israel. Monthly R198-203 subscription.' },
+  { name: 'Meta (Facebook Ads)',
+    website: 'https://business.meta.com',
+    aliases: ['FACEBK'],
+    notes: 'Meta Platforms, Inc. — operator of Facebook, Instagram, WhatsApp, Messenger, Threads. Ad spend billed via Meta Ads Manager (Meta Platforms Ireland Ltd for SA advertisers). HQ Menlo Park, California. Campaign codes vary per ad (FACEBK *ZJ5LG etc.).' },
+  { name: 'MyAppointment SA',
+    website: 'https://www.myappointment.co.za',
+    aliases: ['MYAPPTMENTMY', 'MYAPPOINTMENT'],
+    notes: 'Cloud-based appointment scheduling SaaS for health / beauty / wellness — appointments, invoicing, loyalty, client DB, stock. iOS + Android apps. R560/month subscription. Note: "OpulenMD" reference on some entries has no separate web presence — likely a white-label or internal product code for the same platform. Confirm with supplier.' },
+
+  // ── Marketing / Printing ────────────────────────────────────────────────────
+  { name: 'Jetline',
+    website: 'https://www.jetline.co.za',
+    aliases: ['JETLINE'],
+    notes: 'Jetline Print (Pty) Ltd — nationwide print-and-branding franchise. Graphic design, full-colour / B&W print, corporate stationery, banners, signage (Perspex, Correx, PVC, ABS, Foam Board), vehicle branding, websites. R244 per order observed.' },
+
+  // ── Property ────────────────────────────────────────────────────────────────
+  { name: 'J Govender (Opulent Rent)',
+    aliases: ['J GOVENDER'],
+    notes: 'Private landlord. Fixed R8,800/month rent payment. Reference "OPULENT RENT" suggests this may be for the "Opulent" beauty/homeware business premises (see separate Opulent Beauty / Opulent Homeware business entities). Confirm whether residential or commercial.' },
+
+  // ── Office equipment ────────────────────────────────────────────────────────
+  { name: 'TB Machines',
+    website: 'https://tbmachines.co.za',
+    aliases: ['TB MACHINES'],
+    notes: 'Office machine sales/service + stationery. Copiers, printers, fax, shredders, scales, cash registers, calculators. Stocks toner/cartridges (HP, Canon, Epson, Samsung, Lexmark, Ricoh). Also offers printing, copying, laminating, binding. Likely used for till rolls / printer consumables for the courier admin.' },
 ]
 
 // ─── Rules ────────────────────────────────────────────────────────────────────
@@ -152,6 +246,9 @@ const RULES: RuleDef[] = [
   { name: 'Fuel: Die Kraal Filling', descriptionPattern: 'DIE KRAAL FILLING',
     category: 'Courier Fuel', supplier: 'Die Kraal Filling',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.FUEL_STATION },
+  { name: 'Fuel: Pilanesberg Motors (Total forecourt)', descriptionPattern: 'PILANESBURG MOTORS',
+    category: 'Courier Fuel', supplier: 'Pilanesberg Motors (Total)',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.FUEL_STATION },
 
   // ─── VEHICLE MAINTENANCE ───────────────────────────────────────────────────
   { name: 'Vehicle: CNN Korean Parts', descriptionPattern: 'CNN KOREAN',
@@ -161,13 +258,15 @@ const RULES: RuleDef[] = [
     category: 'Vehicle Maintenance', supplier: 'Glasfit',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
-  // ─── COURIER SUBCONTRACTOR ─────────────────────────────────────────────────
-  { name: 'Trans-Natal Express (sub-contracted courier)', descriptionPattern: 'TRANS-NATAL',
-    category: 'Delivery / Courier', supplier: 'Trans-Natal Express',
-    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
-  { name: 'Trans Natal (no-dash variant)', descriptionPattern: 'TRANS NATAL',
-    category: 'Delivery / Courier', supplier: 'Trans-Natal Express',
-    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  // ─── HOMEWARE / INVENTORY (legacy from 2023 e-commerce era) ─────────────────
+  // Originally mis-classified as a courier — actually Transnatal Glass Factory, a homeware wholesaler.
+  // trustedAutoReview is FALSE here because the business no longer sells homeware — these need manual review.
+  { name: 'Transnatal Glass Factory (homeware wholesale)', descriptionPattern: 'TRANS-NATAL',
+    category: 'Cost of Sales / Materials', supplier: 'Transnatal Glass Factory',
+    transactionType: 'EXPENSE', trustedAutoReview: false, priority: P.SPECIFIC_MERCHANT },
+  { name: 'Trans Natal (no-dash variant)', descriptionPattern: 'C*TRANS NATAL',
+    category: 'Cost of Sales / Materials', supplier: 'Transnatal Glass Factory',
+    transactionType: 'EXPENSE', trustedAutoReview: false, priority: P.SPECIFIC_MERCHANT },
 
   // ─── COMPLIANCE & LEGAL ────────────────────────────────────────────────────
   { name: 'RTMC — Vehicle Licence', descriptionPattern: 'RTMC ',
@@ -208,6 +307,12 @@ const RULES: RuleDef[] = [
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
   { name: 'Jetline — Printing/Signage', descriptionPattern: 'JETLINE',
     category: 'Marketing', supplier: 'Jetline',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'TB Machines — Office Equipment/Supplies', descriptionPattern: 'TB MACHINES',
+    category: 'Office Supplies', supplier: 'TB Machines',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'MyAppointment SA — Booking subscription', descriptionPattern: 'MYAPPTMENTMY',
+    category: 'Software / Subscriptions', supplier: 'MyAppointment SA',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
   // ─── RENT ──────────────────────────────────────────────────────────────────
@@ -272,6 +377,22 @@ export type SeedRulesResult = {
 
 const TENANT_SLUG = 'kgolaentle-holdings'
 
+// Enriched notes to backfill onto existing base-seed suppliers (research from web)
+const BASE_SUPPLIER_ENRICHMENT: Array<{ name: string; website?: string; notes: string }> = [
+  { name: 'Pick n Pay', website: 'https://www.pnp.co.za',
+    notes: 'Pick n Pay Stores Limited (JSE: PIK) — major SA retail group. Supermarkets, hypermarkets, online. Founded 1967 by Raymond Ackerman. HQ Kenilworth, Cape Town. Generally personal expense on this account.' },
+  { name: 'Engen Petroleum', website: 'https://www.engen.co.za',
+    notes: 'Engen Petroleum Limited — SA petroleum company (downstream brand). Parent company Vivo Energy (acquired 2018 from PETRONAS). HQ Cape Town. Parent of Engen Mankwe, Engen Sun City etc.' },
+  { name: 'Vodacom', website: 'https://www.vodacom.co.za',
+    notes: 'Vodacom Group Limited (JSE: VOD) — largest SA mobile network operator (~50m subscribers). Subsidiary of Vodafone Group. HQ Midrand. Charged via VAS prepaid top-ups for business mobile numbers.' },
+  { name: 'Builders Warehouse', website: 'https://www.builders.co.za',
+    notes: 'Builders Warehouse — Massmart\'s home improvement chain (Walmart-owned). DIY, building materials, hardware, tools, garden, paint. HQ Johannesburg.' },
+  { name: 'Standard Bank', website: 'https://www.standardbank.co.za',
+    notes: 'The Standard Bank of South Africa Limited (Reg No. 1962/000738/06, NCRCP15). VAT Reg No. 4100105461. Authorised financial services provider. Account 33 272 236 8 (BIZLAUNCH). All bank charge patterns map to this supplier.' },
+  { name: 'Takealot', website: 'https://www.takealot.com',
+    notes: 'Takealot.com — largest SA online retailer (subsidiary of Naspers/Prosus). Selling on marketplace ("Takealot Seller") was a 2023-mid-2025 revenue source for Kgolaentle. From late 2025 only seller-subscription debits remain. Note: direction matters — CREDIT entries are e-commerce revenue (legacy), DEBIT entries are subscription fees.' },
+]
+
 /**
  * Idempotently seed transaction rules + supporting suppliers and categories
  * into the database. Safe to re-run; existing rules are updated by [tenantId, name].
@@ -280,6 +401,49 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
   const warnings: string[] = []
 
   const tenant = await prisma.tenant.findUniqueOrThrow({ where: { slug: TENANT_SLUG } })
+
+  // Rename legacy "Trans-Natal Express" → "Transnatal Glass Factory" (research correction)
+  // The original name was wrong — this is a homeware wholesaler, not a courier.
+  const legacyTransNatal = await prisma.supplier.findFirst({
+    where: { tenantId: tenant.id, name: 'Trans-Natal Express' },
+    select: { id: true },
+  })
+  if (legacyTransNatal) {
+    // Check if the corrected supplier already exists
+    const existingCorrect = await prisma.supplier.findFirst({
+      where: { tenantId: tenant.id, name: 'Transnatal Glass Factory' },
+      select: { id: true },
+    })
+    if (existingCorrect) {
+      // Already exists — delete the legacy one to avoid the unique constraint clash
+      // (no transactions or rules reference it yet since it was just seeded)
+      await prisma.supplierAlias.deleteMany({ where: { supplierId: legacyTransNatal.id } })
+      await prisma.transactionRule.updateMany({
+        where: { supplierId: legacyTransNatal.id },
+        data: { supplierId: existingCorrect.id },
+      })
+      await prisma.supplier.delete({ where: { id: legacyTransNatal.id } })
+    } else {
+      await prisma.supplier.update({
+        where: { id: legacyTransNatal.id },
+        data: { name: 'Transnatal Glass Factory' },
+      })
+    }
+  }
+
+  // Enrich existing base-seed suppliers with research notes
+  for (const def of BASE_SUPPLIER_ENRICHMENT) {
+    const existing = await prisma.supplier.findFirst({
+      where: { tenantId: tenant.id, name: def.name },
+      select: { id: true },
+    })
+    if (existing) {
+      await prisma.supplier.update({
+        where: { id: existing.id },
+        data: { website: def.website, notes: def.notes },
+      })
+    }
+  }
 
   // Ensure new categories exist
   for (const cat of NEW_CATEGORIES) {
@@ -290,13 +454,13 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
     })
   }
 
-  // Upsert suppliers with aliases
+  // Upsert suppliers with aliases + research notes
   const supplierIdByName: Record<string, string> = {}
   for (const def of SUPPLIERS) {
     const supplier = await prisma.supplier.upsert({
       where: { tenantId_name: { tenantId: tenant.id, name: def.name } },
-      update: { website: def.website },
-      create: { tenantId: tenant.id, name: def.name, website: def.website },
+      update: { website: def.website ?? null, notes: def.notes ?? null },
+      create: { tenantId: tenant.id, name: def.name, website: def.website, notes: def.notes },
     })
     supplierIdByName[def.name] = supplier.id
     for (const alias of def.aliases) {
