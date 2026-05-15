@@ -11,6 +11,7 @@
     "migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
     "migrate:reset": "prisma migrate reset --schema=./prisma/schema.prisma --force",
     "seed": "tsx prisma/seed.ts",
+    "seed:rules": "tsx prisma/seed-rules.ts",
     "generate": "prisma generate --schema=./prisma/schema.prisma",
     "studio": "prisma studio --schema=./prisma/schema.prisma",
     "test": "vitest run"
