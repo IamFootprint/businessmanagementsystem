@@ -8,6 +8,11 @@ async function proxy(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params
+  const requestPath = `/${path.join('/')}`
+  const BLOCKED_PREFIXES = ['/health']
+  if (BLOCKED_PREFIXES.some(p => requestPath === p || requestPath.startsWith(`${p}/`))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   const upstream = `${API_URL}/${path.join('/')}${req.nextUrl.search}`
 
   const cookieStore = await cookies()

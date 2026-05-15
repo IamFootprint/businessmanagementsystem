@@ -50,6 +50,9 @@ export async function notifyCloseReminder(c: Context<AppEnv>) {
   if (!phone || !businessId) return c.json({ error: 'phone and businessId required' }, 400)
 
   try {
+    const ownedBusiness = await prisma.business.findFirst({ where: { id: businessId, tenantId: user.tenantId } })
+    if (!ownedBusiness) return c.json({ error: 'Business not found' }, 404)
+
     const cutoff = new Date(Date.now() - REMINDER_THRESHOLD_MS)
     const openPeriods = await prisma.monthlyPeriod.findMany({
       where: { businessId, status: 'OPEN', createdAt: { lt: cutoff } },

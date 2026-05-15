@@ -1,10 +1,12 @@
 import type { ReportSnapshotData, ReportTransaction } from './report-engine'
 
 function escapeCsv(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`
+  // Neutralize formula injection: prefix cell if it starts with =, +, -, @, tab, or CR
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  if (safe.includes(',') || safe.includes('"') || safe.includes('\n')) {
+    return `"${safe.replace(/"/g, '""')}"`
   }
-  return value
+  return safe
 }
 
 export function reportToCsv(
