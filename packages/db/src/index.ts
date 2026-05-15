@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client'
 
 export * from '@prisma/client'
+export { seedRules } from './seed/rules'
+export type { SeedRulesResult } from './seed/rules'
 
 let _client: PrismaClient | undefined
 
