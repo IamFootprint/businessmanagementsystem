@@ -7,6 +7,7 @@ import { rankCandidates } from '../lib/receipt-match'
 const STALE_DAYS = 90
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
 
 export async function uploadReceiptPublic(c: Context<AppEnv>) {
   let formData: FormData
@@ -22,6 +23,10 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
   if (!file || typeof file === 'string') return c.json({ error: 'file is required' }, 400)
   if (!phone || typeof phone !== 'string') return c.json({ error: 'phone is required' }, 400)
   if ((file as File).size > MAX_FILE_BYTES) return c.json({ error: 'File exceeds 10 MB limit' }, 413)
+  const mimeType = (file as File).type || 'application/octet-stream'
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    return c.json({ error: 'Only JPEG, PNG, WEBP, GIF, and PDF files are accepted' }, 415)
+  }
 
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN
   if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
@@ -33,9 +38,10 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
   const hintSupplier = formData.get('hintSupplier')
   const hintBusinessId = formData.get('hintBusinessId')
 
+  const safeFileName = (file as File).name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'upload'
   let storagePath: string
   try {
-    const blob = await put(`receipts/${Date.now()}-${(file as File).name}`, file as File, {
+    const blob = await put(`receipts/${Date.now()}-${safeFileName}`, file as File, {
       access: 'public',
       token: blobToken,
     })
@@ -59,8 +65,8 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
         hintSupplier: hintSupplier ? String(hintSupplier) : null,
         hintBusinessId: hintBusinessId ? String(hintBusinessId) : null,
         storagePath,
-        fileName: (file as File).name,
-        fileMimeType: (file as File).type || 'application/octet-stream',
+        fileName: safeFileName,
+        fileMimeType: mimeType,
         fileSizeBytes: (file as File).size,
       },
     })
@@ -75,17 +81,17 @@ export async function listReceipts(c: Context<AppEnv>) {
   const { matchStatus, businessId } = c.req.query()
 
   try {
-    const tenantBusinessIds = (
-      await prisma.business.findMany({ where: { tenantId: user.tenantId }, select: { id: true } })
-    ).map((b) => b.id)
+    const [tenantBusinessIds, tenantUserPhones] = await Promise.all([
+      prisma.business.findMany({ where: { tenantId: user.tenantId }, select: { id: true } }).then(bs => bs.map(b => b.id)),
+      prisma.user.findMany({ where: { tenantId: user.tenantId, phone: { not: null } }, select: { phone: true } }).then(us => us.map(u => u.phone as string)),
+    ])
 
-    // Include receipts assigned to a tenant business OR unassigned (null) — field uploads arrive without a businessId
-    const where: Record<string, unknown> = {
-      OR: [
-        { hintBusinessId: { in: tenantBusinessIds } },
-        { hintBusinessId: null },
-      ],
-    }
+    const baseOr: Record<string, unknown>[] = [
+      { hintBusinessId: { in: tenantBusinessIds } },
+      ...(tenantUserPhones.length > 0 ? [{ hintBusinessId: null, uploaderPhone: { in: tenantUserPhones } }] : []),
+    ]
+
+    const where: Record<string, unknown> = { OR: baseOr }
     if (matchStatus) where.matchStatus = matchStatus
     if (businessId) {
       if (!tenantBusinessIds.includes(businessId)) return c.json({ error: 'Not found' }, 404)
@@ -128,6 +134,13 @@ export async function updateReceipt(c: Context<AppEnv>) {
     if (receipt.hintBusinessId) {
       const business = await prisma.business.findFirst({ where: { id: receipt.hintBusinessId, tenantId: user.tenantId } })
       if (!business) return c.json({ error: 'Not found' }, 404)
+    } else {
+      const tenantPhones = await prisma.user
+        .findMany({ where: { tenantId: user.tenantId, phone: { not: null } }, select: { phone: true } })
+        .then(us => us.map(u => u.phone as string))
+      if (!tenantPhones.includes(receipt.uploaderPhone)) {
+        return c.json({ error: 'Not found' }, 404)
+      }
     }
 
     const updated = await prisma.receipt.update({
@@ -164,7 +177,7 @@ export async function matchReceipt(c: Context<AppEnv>) {
       hintSupplier: receipt.hintSupplier,
     }
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { bankAccount: { tenantId: user.tenantId } }
     if (receipt.hintBusinessId) where.businessId = receipt.hintBusinessId
 
     const transactions = await prisma.transaction.findMany({
@@ -215,8 +228,17 @@ export async function markStaleReceipts(c: Context<AppEnv>) {
   const cutoff = new Date(Date.now() - STALE_MS)
 
   try {
+    const [tenantBusinessIds, tenantUserPhones] = await Promise.all([
+      prisma.business.findMany({ where: { tenantId: user.tenantId }, select: { id: true } }).then(bs => bs.map(b => b.id)),
+      prisma.user.findMany({ where: { tenantId: user.tenantId, phone: { not: null } }, select: { phone: true } }).then(us => us.map(u => u.phone as string)),
+    ])
+
     const result = await prisma.receipt.updateMany({
       where: {
+        OR: [
+          { hintBusinessId: { in: tenantBusinessIds } },
+          ...(tenantUserPhones.length > 0 ? [{ hintBusinessId: null, uploaderPhone: { in: tenantUserPhones } }] : []),
+        ],
         capturedAt: { lt: cutoff },
         matchStatus: { in: [ReceiptMatchStatus.UNMATCHED, ReceiptMatchStatus.SUGGESTED] },
         isStale: false,
