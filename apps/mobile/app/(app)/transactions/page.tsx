@@ -1,6 +1,19 @@
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
 import { TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
 
+// API contract — matches what /transactions actually returns
+type ApiTransaction = {
+  id: string
+  transactionDate: string
+  rawDescription: string
+  cleanDescription?: string
+  amountCents: number
+  direction: 'CREDIT' | 'DEBIT'
+  reviewStatus?: string
+  category?: { id: string; name: string; color?: string } | null
+}
+
+// Local view-model
 type Transaction = {
   id: string
   description: string
@@ -9,6 +22,18 @@ type Transaction = {
   date: string
   categoryName?: string
   reviewStatus?: string
+}
+
+function toView(t: ApiTransaction): Transaction {
+  return {
+    id: t.id,
+    description: t.cleanDescription || t.rawDescription || '',
+    amountCents: Math.abs(t.amountCents),
+    type: t.direction === 'CREDIT' ? 'INCOME' : 'EXPENSE',
+    date: t.transactionDate,
+    categoryName: t.category?.name,
+    reviewStatus: t.reviewStatus,
+  }
 }
 
 type Meta = { total: number; page: number; pageSize: number }
@@ -21,13 +46,15 @@ function fmt(cents: number): string {
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
 }
 
 function groupByDate(txs: Transaction[]): Array<{ date: string; items: Transaction[] }> {
   const map = new Map<string, Transaction[]>()
   for (const tx of txs) {
-    const d = tx.date.split('T')[0]
+    if (!tx.date) continue
+    const d = String(tx.date).split('T')[0]
     if (!map.has(d)) map.set(d, [])
     map.get(d)!.push(tx)
   }
@@ -51,10 +78,10 @@ export default async function TransactionsPage({
   let error = false
 
   try {
-    const res = await apiRequestAuthenticated<{ data: Transaction[]; meta: Meta }>(
+    const res = await apiRequestAuthenticated<{ data: ApiTransaction[]; meta: Meta }>(
       `/transactions?${qs}`
     )
-    transactions = res.data ?? []
+    transactions = (res.data ?? []).map(toView)
     meta = res.meta ?? { total: 0, page: 1, pageSize }
   } catch {
     error = true

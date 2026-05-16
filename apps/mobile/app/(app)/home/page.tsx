@@ -3,6 +3,19 @@ import { TrendingUp, TrendingDown, ArrowRight, Clock, CheckCircle2, AlertCircle 
 import Link from 'next/link'
 
 type Period = { id: string; year: number; month: number; status: string; lockedAt: string | null }
+
+// API contract — matches what /transactions actually returns
+type ApiTransaction = {
+  id: string
+  transactionDate: string
+  rawDescription: string
+  cleanDescription?: string
+  amountCents: number
+  direction: 'CREDIT' | 'DEBIT'
+  category?: { id: string; name: string } | null
+}
+
+// Local view-model
 type Transaction = {
   id: string
   description: string
@@ -10,6 +23,17 @@ type Transaction = {
   type: 'INCOME' | 'EXPENSE'
   date: string
   categoryName?: string
+}
+
+function toView(t: ApiTransaction): Transaction {
+  return {
+    id: t.id,
+    description: t.cleanDescription || t.rawDescription || '',
+    amountCents: Math.abs(t.amountCents),
+    type: t.direction === 'CREDIT' ? 'INCOME' : 'EXPENSE',
+    date: t.transactionDate,
+    categoryName: t.category?.name,
+  }
 }
 type Snapshot = {
   totalRevenueCents: number
@@ -26,6 +50,7 @@ function fmt(cents: number): string {
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`
 }
 
@@ -39,12 +64,12 @@ function greeting(): string {
 export default async function HomePage() {
   const [periodsResult, txResult, pendingResult] = await Promise.allSettled([
     apiRequestAuthenticated<{ periods: Period[] }>('/periods'),
-    apiRequestAuthenticated<{ data: Transaction[]; meta: { total: number } }>('/transactions?pageSize=6'),
+    apiRequestAuthenticated<{ data: ApiTransaction[]; meta: { total: number } }>('/transactions?pageSize=6'),
     apiRequestAuthenticated<{ meta: { total: number } }>('/transactions?reviewStatus=NEEDS_REVIEW&pageSize=1'),
   ])
 
   const periods = periodsResult.status === 'fulfilled' ? (periodsResult.value.periods ?? []) : []
-  const transactions = txResult.status === 'fulfilled' ? (txResult.value.data ?? []) : []
+  const transactions: Transaction[] = txResult.status === 'fulfilled' ? (txResult.value.data ?? []).map(toView) : []
   const txTotal = txResult.status === 'fulfilled' ? (txResult.value.meta?.total ?? 0) : 0
   const pendingCount = pendingResult.status === 'fulfilled' ? (pendingResult.value.meta?.total ?? 0) : 0
 
