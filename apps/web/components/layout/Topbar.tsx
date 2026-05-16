@@ -1,5 +1,18 @@
 'use client'
 import { Search, ChevronRight } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+
+const PATH_TITLES: Record<string, string> = {
+  '/dashboard': 'Overview',
+  '/dashboard/insights': 'Insights',
+  '/dashboard/transactions': 'Transactions',
+  '/dashboard/rules': 'Rules',
+  '/dashboard/import': 'Import',
+  '/dashboard/suppliers': 'Suppliers',
+  '/dashboard/categories': 'Categories',
+  '/dashboard/receipts': 'Receipts',
+  '/dashboard/reports': 'Reports',
+}
 
 interface TopbarProps {
   pageTitle: string
@@ -7,6 +20,11 @@ interface TopbarProps {
 }
 
 export function Topbar({ pageTitle, period }: TopbarProps) {
+  const pathname = usePathname()
+  const derivedTitle = Object.entries(PATH_TITLES)
+    .filter(([key]) => pathname === key || pathname.startsWith(key + '/'))
+    .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ?? pageTitle
+
   return (
     <div
       className="sticky top-0 z-30 flex h-[60px] items-center justify-between border-b border-[var(--color-border)] px-6"
@@ -19,7 +37,7 @@ export function Topbar({ pageTitle, period }: TopbarProps) {
       <div className="flex items-center gap-1.5 text-[13px]">
         <span className="text-[var(--color-ink-3)]">Kgolaentle Holdings</span>
         <ChevronRight className="h-3.5 w-3.5 text-[var(--color-ink-4)]" />
-        <span className="font-medium text-[var(--color-ink)]">{pageTitle}</span>
+        <span className="font-medium text-[var(--color-ink)]">{derivedTitle}</span>
       </div>
 
       {/* Right controls */}
@@ -42,7 +60,7 @@ export function Topbar({ pageTitle, period }: TopbarProps) {
             type="search"
             readOnly
             aria-label="Search (coming soon)"
-            placeholder={`Search ${pageTitle.toLowerCase()}…`}
+            placeholder={`Search ${derivedTitle.toLowerCase()}…`}
             className="h-8 min-w-[240px] rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] pl-8 pr-12 text-[13px] outline-none placeholder:text-[var(--color-ink-3)] focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-[var(--color-border)] bg-[var(--color-panel-2)] px-1.5 py-px font-mono text-[10px] text-[var(--color-ink-3)]">

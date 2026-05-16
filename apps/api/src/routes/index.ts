@@ -11,6 +11,7 @@ import { registerPeriodRoutes } from './period.routes'
 import { registerNotifyRoutes } from './notify.routes'
 import { registerCategoryRoutes } from './category.routes'
 import { registerAdminRoutes } from './admin.routes'
+import { registerAnalyticsRoutes } from './analytics.routes'
 
 export function registerRoutes(app: Hono<AppEnv>) {
   app.get('/health', getHealth)
@@ -25,4 +26,5 @@ export function registerRoutes(app: Hono<AppEnv>) {
   registerNotifyRoutes(app)
   registerCategoryRoutes(app)
   registerAdminRoutes(app)
+  registerAnalyticsRoutes(app)
 }

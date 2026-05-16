@@ -8,6 +8,7 @@ import {
   Building2,
   Receipt,
   BarChart3,
+  LineChart,
   LogOut,
   X,
   ChevronDown,
@@ -26,6 +27,7 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: '/dashboard',              label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/dashboard/insights',     label: 'Insights',     icon: LineChart },
   { href: '/dashboard/transactions', label: 'Transactions', icon: ListFilter,      countKey: 'transactions' as const },
   { href: '/dashboard/rules',        label: 'Rules',        icon: Zap },
   { href: '/dashboard/import',       label: 'Import',       icon: ArrowUpFromLine },
