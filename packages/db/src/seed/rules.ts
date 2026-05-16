@@ -227,6 +227,10 @@ const RULES: RuleDef[] = [
   { name: 'EFTPOS card settlement (Debit Card)', descriptionPattern: 'DR EFTPOS 2KC',
     category: 'Courier Revenue', business: 'fastway',
     transactionType: 'REVENUE', trustedAutoReview: true, priority: P.REVENUE },
+  // Legacy 2023 Fastway revenue — before VHH Group rebrand
+  { name: 'Fastway RBG (legacy 2023 franchise income)', descriptionPattern: 'FASTWAY RBG',
+    category: 'Courier Revenue', supplier: 'VHH Group', business: 'fastway',
+    transactionType: 'REVENUE', trustedAutoReview: true, priority: P.REVENUE },
 
   // ─── BANK CHARGES ──────────────────────────────────────────────────────────
   { name: 'Bank fee: Overdraft Interest', descriptionPattern: 'OVERDRAFT INTEREST',

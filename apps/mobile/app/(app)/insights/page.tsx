@@ -30,6 +30,19 @@ type AnalyticsOverview = {
   businesses: Array<{ id: string; slug: string; name: string }>
   filter: { businessId: string | null }
   unassignedCount: number
+  unassignedBreakdown?: {
+    totalCount: number
+    debits: { label: string; count: number; totalCents: number; topSamples: string[] }
+    credits: {
+      cashDeposits: { label: string; count: number; totalCents: number; topSamples: string[] }
+      eftIn: { label: string; count: number; totalCents: number; topSamples: string[] }
+      payShapIn: { label: string; count: number; totalCents: number; topSamples: string[] }
+      capitalInternal: { label: string; count: number; totalCents: number; topSamples: string[] }
+      magtapePos: { label: string; count: number; totalCents: number; topSamples: string[] }
+      reversals: { label: string; count: number; totalCents: number; topSamples: string[] }
+      other: { label: string; count: number; totalCents: number; topSamples: string[] }
+    }
+  }
 }
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -294,6 +307,16 @@ export default async function InsightsPage({
         </Card>
       )}
 
+      {/* Unassigned breakdown — only show on the unassigned filter */}
+      {businessId === 'unassigned' && data.unassignedBreakdown && (
+        <Card
+          title="Unassigned breakdown"
+          subtitle={`${data.unassignedBreakdown.totalCount.toLocaleString()} transactions not yet attributed to a business`}
+        >
+          <UnassignedBreakdown b={data.unassignedBreakdown} />
+        </Card>
+      )}
+
       {/* Year-over-year */}
       {data.yearTotals.length > 1 && (
         <Card title="Year-over-year" subtitle={`${data.yearTotals.length}-year comparison`}>
@@ -548,6 +571,85 @@ function BarList({ items }: { items: Array<{ id: string; name: string; value: nu
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function UnassignedBreakdown({ b }: {
+  b: NonNullable<AnalyticsOverview['unassignedBreakdown']>
+}) {
+  const debitRow = b.debits
+  const creditRows = [
+    { key: 'cashDeposits', ...b.credits.cashDeposits, accent: 'var(--color-pos)' },
+    { key: 'eftIn', ...b.credits.eftIn },
+    { key: 'payShapIn', ...b.credits.payShapIn },
+    { key: 'capitalInternal', ...b.credits.capitalInternal },
+    { key: 'magtapePos', ...b.credits.magtapePos },
+    { key: 'reversals', ...b.credits.reversals },
+    { key: 'other', ...b.credits.other },
+  ].filter((r) => r.count > 0)
+  const totalCreditCount = creditRows.reduce((s, r) => s + r.count, 0)
+  const totalCreditCents = creditRows.reduce((s, r) => s + r.totalCents, 0)
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Debits */}
+      <div className="rounded-lg p-3" style={{ background: 'color-mix(in srgb, var(--color-neg) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--color-neg) 24%, transparent)' }}>
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] font-semibold uppercase tracking-[.06em]" style={{ color: 'var(--color-neg)' }}>
+            Debits
+          </span>
+          <span className="text-[11px]" style={{ color: 'var(--color-ink-3)' }}>{debitRow.count.toLocaleString()} txns</span>
+        </div>
+        <p className="mt-1 text-[18px] font-semibold tabular-nums" style={{ color: 'var(--color-neg)', fontFamily: 'var(--font-display)' }}>
+          {signedRand(debitRow.totalCents, true)}
+        </p>
+      </div>
+
+      {/* Credits total */}
+      <div className="rounded-lg p-3" style={{ background: 'color-mix(in srgb, var(--color-pos) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--color-pos) 24%, transparent)' }}>
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] font-semibold uppercase tracking-[.06em]" style={{ color: 'var(--color-pos)' }}>
+            Credits
+          </span>
+          <span className="text-[11px]" style={{ color: 'var(--color-ink-3)' }}>{totalCreditCount.toLocaleString()} txns</span>
+        </div>
+        <p className="mt-1 text-[18px] font-semibold tabular-nums" style={{ color: 'var(--color-pos)', fontFamily: 'var(--font-display)' }}>
+          {signedRand(totalCreditCents, true)}
+        </p>
+
+        {/* Credit sub-breakdown */}
+        <div className="mt-3 flex flex-col gap-2">
+          {creditRows.map((r) => {
+            const pct = totalCreditCents > 0 ? (r.totalCents / totalCreditCents) * 100 : 0
+            const isCash = r.key === 'cashDeposits'
+            return (
+              <div key={r.key} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className={isCash ? 'font-medium' : ''} style={{ color: isCash ? 'var(--color-pos)' : 'var(--color-ink)' }}>
+                    {r.label}{isCash && ' ★'}
+                  </span>
+                  <span className="shrink-0 tabular-nums font-medium" style={{ color: 'var(--color-ink-2)' }}>
+                    {formatRand(r.totalCents, true)}
+                    <span className="ml-1.5 text-[10px]" style={{ color: 'var(--color-ink-3)' }}>{r.count}×</span>
+                  </span>
+                </div>
+                <div className="h-[4px] w-full rounded-full overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                  <div className="h-full" style={{ width: `${pct}%`, background: isCash ? 'var(--color-pos)' : 'var(--color-accent)' }} />
+                </div>
+                {r.topSamples.length > 0 && (
+                  <details className="text-[10px]" style={{ color: 'var(--color-ink-3)' }}>
+                    <summary className="cursor-pointer list-none">Examples ↓</summary>
+                    <ul className="mt-1 ml-1 flex flex-col gap-0.5">
+                      {r.topSamples.slice(0, 3).map((s, i) => <li key={i} className="truncate">• {s}</li>)}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

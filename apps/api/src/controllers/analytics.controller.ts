@@ -195,6 +195,104 @@ export async function analyticsOverview(c: Context<AppEnv>) {
   // Include count of unassigned txns so the UI can show a helpful filter chip
   const unassignedCount = allTxs.filter((t) => t.businessId === null && !t.isPersonal).length
 
+  // Breakdown of UNASSIGNED transactions (regardless of current filter) so the
+  // UI can drill into what's still uncategorised. Always includes ALL unassigned
+  // txns within the active date range, but ignores the businessId filter.
+  const unassignedTxs = allTxs.filter((t) => {
+    if (t.businessId !== null) return false
+    if (t.isPersonal) return false
+    if (fromDate && t.transactionDate < fromDate) return false
+    if (toDate && t.transactionDate > toDate) return false
+    return true
+  })
+
+  // Bucket credits into sub-types based on description patterns
+  type Bucket = { label: string; count: number; totalCents: number; topSamples: string[] }
+  const bucket = (label: string): Bucket => ({ label, count: 0, totalCents: 0, topSamples: [] })
+
+  const debitsBucket = bucket('Debits')
+  const creditCash = bucket('Cash deposits')
+  const creditEft = bucket('EFT / credit transfers')
+  const creditPayshap = bucket('PayShap incoming')
+  const creditCapital = bucket('Capital injections / internal transfers')
+  const creditMagtape = bucket('Magtape / POS settlements')
+  const creditReversal = bucket('Reversals / refunds')
+  const creditOther = bucket('Other credits')
+
+  const addSample = (b: Bucket, desc: string) => {
+    if (b.topSamples.length < 5 && !b.topSamples.includes(desc)) b.topSamples.push(desc)
+  }
+
+  for (const t of unassignedTxs) {
+    const desc = (t.category?.name ?? '') + ' ' + ((t as { rawDescription?: string }).rawDescription ?? '')
+    // We don't select rawDescription above, so use cleanDescription via a separate query
+    // For now use category name as a hint — actual desc-based bucketing happens below
+  }
+
+  // Need rawDescription/cleanDescription for bucketing — re-fetch
+  const unassignedWithDesc = unassignedTxs.length > 0 ? await prisma.transaction.findMany({
+    where: { id: { in: unassignedTxs.map((t) => t.id) } },
+    select: { id: true, direction: true, amountCents: true, rawDescription: true, cleanDescription: true },
+  }) : []
+
+  for (const t of unassignedWithDesc) {
+    const desc = (t.cleanDescription || t.rawDescription || '').toUpperCase()
+    const amt = t.amountCents
+
+    if (t.direction === 'DEBIT') {
+      debitsBucket.count++
+      debitsBucket.totalCents += amt
+      addSample(debitsBucket, desc.slice(0, 80))
+      continue
+    }
+
+    // CREDIT classification
+    let target: Bucket
+    // True cash deposits — physical cash brought into the bank
+    if (desc.includes('CASH DEPOSIT') || desc.includes('ATM DEPOSIT') ||
+        desc.includes('CASH PAYMENT') ||
+        // Ad-hoc "DEPOSIT" but excluding seller settlements / e-commerce
+        (desc.includes('DEPOSIT') && !desc.includes('SELLER') && !desc.includes('TAKEALOT') &&
+         !desc.includes('CASHFOCUS') && !desc.includes('NO DEPOSIT'))) {
+      target = creditCash
+    } else if (desc.includes('PAYSHAP')) {
+      target = creditPayshap
+    } else if (desc.includes('CAPITAL INJECT') || desc.includes('STOCK CAPITAL') ||
+               desc.includes('CAPITAL RETURN') || desc.includes('CAPITAL REIM') ||
+               desc.includes('CAPITAL REIMB') || desc.includes('IB TRANSFER FROM') ||
+               desc.includes('FUEL CAPITAL') || desc.includes('WITHDRAW')) {
+      target = creditCapital
+    } else if (desc.includes('MAGTAPE')) {
+      target = creditMagtape
+    } else if (desc.includes('REVERSAL') || desc.includes('RTD-NOT PROVIDED') || desc.includes('REFUND')) {
+      target = creditReversal
+    } else if (desc.includes('CREDIT TRANSFER') || desc.includes('REAL TIME TRANSFER') ||
+               desc.includes('SALARY') || desc.includes('CASHFOCUS') ||
+               desc.includes('PAYFAST') || desc.includes('FASTWAY')) {
+      target = creditEft
+    } else {
+      target = creditOther
+    }
+
+    target.count++
+    target.totalCents += amt
+    addSample(target, desc.slice(0, 80))
+  }
+
+  const unassignedBreakdown = {
+    totalCount: unassignedTxs.length,
+    debits: debitsBucket,
+    credits: {
+      cashDeposits: creditCash,
+      eftIn: creditEft,
+      payShapIn: creditPayshap,
+      capitalInternal: creditCapital,
+      magtapePos: creditMagtape,
+      reversals: creditReversal,
+      other: creditOther,
+    },
+  }
+
   return c.json({
     kpis: {
       totalRevenueCents,
@@ -216,5 +314,6 @@ export async function analyticsOverview(c: Context<AppEnv>) {
       to: toStr ?? null,
     },
     unassignedCount,
+    unassignedBreakdown,
   })
 }
