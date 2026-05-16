@@ -98,9 +98,21 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
         />
       </div>
 
+      {/* Cumulative net trend */}
+      <Section
+        title={selectedYear === 'all' ? 'Cumulative net trend' : `Cumulative net — ${selectedYear}`}
+        subtitle="How the business' net position has changed over time"
+      >
+        {monthlyForChart.length === 0 ? (
+          <EmptyState message="No transactions for this period." />
+        ) : (
+          <CumulativeTrendChart months={monthlyForChart} />
+        )}
+      </Section>
+
       {/* Monthly P&L chart */}
       <Section
-        title={selectedYear === 'all' ? 'Monthly P&L (all months)' : `Monthly P&L — ${selectedYear}`}
+        title={selectedYear === 'all' ? 'Monthly P&L' : `Monthly P&L — ${selectedYear}`}
         subtitle={`${monthlyForChart.length} months · green = revenue, red = expenses`}
       >
         {monthlyForChart.length === 0 ? (
@@ -112,13 +124,38 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
 
       {/* Per-business breakdown */}
       {data.perBusiness.length > 0 && (
-        <Section title="Per-business performance" subtitle={`${data.perBusiness.length} businesses with rule-linked transactions`}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {data.perBusiness.map((b) => (
-              <BusinessCard key={b.id} business={b} />
-            ))}
-          </div>
-        </Section>
+        <>
+          <Section
+            title="Business mix"
+            subtitle="Revenue and expense distribution across business units"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <BusinessDonut
+                title="Revenue mix"
+                subtitle={`Total R${(data.perBusiness.reduce((s, b) => s + b.revenueCents, 0) / 100).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`}
+                items={data.perBusiness
+                  .map((b) => ({ id: b.id, name: b.name, value: b.revenueCents }))
+                  .filter((x) => x.value > 0)}
+                positive
+              />
+              <BusinessDonut
+                title="Expense mix"
+                subtitle={`Total R${(Math.abs(data.perBusiness.reduce((s, b) => s + b.expenseCents, 0)) / 100).toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`}
+                items={data.perBusiness
+                  .map((b) => ({ id: b.id, name: b.name, value: Math.abs(b.expenseCents) }))
+                  .filter((x) => x.value > 0)}
+                positive={false}
+              />
+            </div>
+          </Section>
+          <Section title="Per-business performance" subtitle={`${data.perBusiness.length} businesses with rule-linked transactions`}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {data.perBusiness.map((b) => (
+                <BusinessCard key={b.id} business={b} />
+              ))}
+            </div>
+          </Section>
+        </>
       )}
 
       {/* Two-column layout for categories + suppliers */}
@@ -152,13 +189,18 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
 
       {/* Year-over-year comparison */}
       {data.yearTotals.length > 1 && (
-        <Section title="Year-over-year" subtitle={`${data.yearTotals.length}-year revenue, expense, net trend`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {data.yearTotals.map((y) => (
-              <YearCard key={y.year} year={y} />
-            ))}
-          </div>
-        </Section>
+        <>
+          <Section title="Year-over-year — revenue vs expenses" subtitle={`Grouped bar chart across ${data.yearTotals.length} years`}>
+            <YearGroupedBars years={data.yearTotals} />
+          </Section>
+          <Section title="Yearly summary cards" subtitle={`${data.yearTotals.length}-year revenue, expense, net trend`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {data.yearTotals.map((y) => (
+                <YearCard key={y.year} year={y} />
+              ))}
+            </div>
+          </Section>
+        </>
       )}
 
       {data.kpis.personalCount > 0 && (
@@ -335,6 +377,448 @@ function YearCard({ year }: {
         <span>Rev <strong className="text-[var(--color-pos)]">{formatRand(year.revenueCents, true)}</strong></span>
         <span>Exp <strong className="text-[var(--color-neg)]">{formatRand(year.expenseCents, true)}</strong></span>
       </div>
+    </div>
+  )
+}
+
+// ─── New chart components ────────────────────────────────────────────────────
+
+/**
+ * Cumulative net trend — SVG line chart with shaded area, axis labels, and the
+ * latest value annotation. Designed to be screenshot-friendly.
+ */
+function CumulativeTrendChart({ months }: {
+  months: Array<{ yearMonth: string; netCents: number }>
+}) {
+  if (months.length < 2) return <EmptyState message="Need at least 2 months for a trend." />
+
+  // Build cumulative series
+  let cum = 0
+  const points = months.map((m) => {
+    cum += m.netCents
+    return { ym: m.yearMonth, cum }
+  })
+
+  const minY = Math.min(0, ...points.map((p) => p.cum))
+  const maxY = Math.max(0, ...points.map((p) => p.cum))
+  const range = Math.max(1, maxY - minY)
+
+  // SVG dims
+  const W = 800
+  const H = 220
+  const padX = 40
+  const padY = 24
+  const innerW = W - padX * 2
+  const innerH = H - padY * 2
+
+  const xFor = (i: number) => padX + (i / (points.length - 1)) * innerW
+  const yFor = (val: number) => padY + innerH - ((val - minY) / range) * innerH
+  const zeroY = yFor(0)
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(p.cum)}`).join(' ')
+  const areaPath = `${linePath} L ${xFor(points.length - 1)} ${zeroY} L ${xFor(0)} ${zeroY} Z`
+
+  // Y-axis ticks (5)
+  const tickValues = [0, 0.25, 0.5, 0.75, 1].map((t) => minY + t * range)
+
+  // X-axis labels: pick ~6 across
+  const labelEvery = Math.max(1, Math.floor(points.length / 6))
+  const finalNet = points[points.length - 1].cum
+  const finalIsPositive = finalNet >= 0
+
+  return (
+    <div className="overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ minWidth: '320px', maxHeight: '260px' }}
+        preserveAspectRatio="xMinYMid meet"
+        role="img"
+        aria-label="Cumulative net trend line"
+      >
+        <defs>
+          <linearGradient id="trendAreaPositive" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-pos)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="var(--color-pos)" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="trendAreaNegative" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-neg)" stopOpacity="0.02" />
+            <stop offset="100%" stopColor="var(--color-neg)" stopOpacity="0.25" />
+          </linearGradient>
+        </defs>
+
+        {/* Y-grid lines + labels */}
+        {tickValues.map((tv, i) => (
+          <g key={i}>
+            <line
+              x1={padX}
+              x2={W - padX}
+              y1={yFor(tv)}
+              y2={yFor(tv)}
+              stroke="var(--color-border)"
+              strokeDasharray="2 4"
+            />
+            <text
+              x={padX - 6}
+              y={yFor(tv)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize="10"
+              fill="var(--color-ink-3)"
+              style={{ fontVariantNumeric: 'tabular-nums' }}
+            >
+              {signedRand(tv, true)}
+            </text>
+          </g>
+        ))}
+
+        {/* Zero baseline (emphasised if not at boundary) */}
+        {minY < 0 && maxY > 0 && (
+          <line
+            x1={padX}
+            x2={W - padX}
+            y1={zeroY}
+            y2={zeroY}
+            stroke="var(--color-ink-3)"
+            strokeWidth="1"
+          />
+        )}
+
+        {/* Area fill */}
+        <path d={areaPath} fill={finalIsPositive ? 'url(#trendAreaPositive)' : 'url(#trendAreaNegative)'} />
+
+        {/* Trend line */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke={finalIsPositive ? 'var(--color-pos)' : 'var(--color-neg)'}
+          strokeWidth="2.2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+
+        {/* End-point marker */}
+        <circle
+          cx={xFor(points.length - 1)}
+          cy={yFor(finalNet)}
+          r="4"
+          fill={finalIsPositive ? 'var(--color-pos)' : 'var(--color-neg)'}
+          stroke="var(--color-panel)"
+          strokeWidth="2"
+        />
+
+        {/* X-axis labels */}
+        {points.map((p, i) => {
+          if (i % labelEvery !== 0 && i !== points.length - 1) return null
+          const [yr, mn] = p.ym.split('-')
+          return (
+            <text
+              key={p.ym}
+              x={xFor(i)}
+              y={H - 4}
+              textAnchor="middle"
+              fontSize="9.5"
+              fill="var(--color-ink-3)"
+            >
+              {MONTH_LABELS[parseInt(mn, 10) - 1]} {yr.slice(2)}
+            </text>
+          )
+        })}
+      </svg>
+
+      {/* Latest value chip */}
+      <div className="mt-2 flex items-center justify-between text-[11.5px] text-[var(--color-ink-3)]">
+        <span>From {formatYearMonth(points[0].ym)}</span>
+        <span className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                backgroundColor: finalIsPositive ? 'color-mix(in srgb, var(--color-pos) 12%, transparent)' : 'color-mix(in srgb, var(--color-neg) 12%, transparent)',
+                color: finalIsPositive ? 'var(--color-pos)' : 'var(--color-neg)',
+              }}>
+          Cumulative net: {signedRand(finalNet, true)}
+        </span>
+        <span>To {formatYearMonth(points[points.length - 1].ym)}</span>
+      </div>
+    </div>
+  )
+}
+
+function formatYearMonth(ym: string): string {
+  const [yr, mn] = ym.split('-')
+  return `${MONTH_LABELS[parseInt(mn, 10) - 1]} ${yr}`
+}
+
+/**
+ * Donut/pie chart — designed to show business splits.
+ * Renders inline legend with percentages. Screenshot-friendly: includes total in center.
+ */
+const BUSINESS_PALETTE: Record<string, string> = {
+  // Slug or name keyed colours. Falls back to indexed palette.
+  fastway: '#d97706',
+  'opulent-beauty': '#db2777',
+  'opulent-homeware': '#0891b2',
+  'kgolaentle-holdings-group': '#7c3aed',
+}
+const FALLBACK_PALETTE = ['#d97706', '#db2777', '#0891b2', '#7c3aed', '#16a34a', '#dc2626']
+
+function BusinessDonut({ title, subtitle, items, positive }: {
+  title: string
+  subtitle: string
+  items: Array<{ id: string; name: string; value: number }>
+  positive: boolean
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-[10px] border border-[var(--color-border-2)] bg-[var(--color-panel-2)] p-4">
+        <h3 className="text-[13px] font-semibold text-[var(--color-ink)]">{title}</h3>
+        <EmptyState message={`No ${positive ? 'revenue' : 'expenses'} attributed to a business yet.`} />
+      </div>
+    )
+  }
+
+  const total = items.reduce((s, x) => s + x.value, 0)
+  const sorted = [...items].sort((a, b) => b.value - a.value)
+
+  // SVG donut
+  const size = 160
+  const cx = size / 2
+  const cy = size / 2
+  const outerR = 70
+  const innerR = 46
+
+  // If only one slice, we render a single ring (avoid path arc weirdness)
+  let cumPct = 0
+  const slices = sorted.map((item, idx) => {
+    const pct = item.value / total
+    const startAngle = cumPct * 2 * Math.PI - Math.PI / 2
+    cumPct += pct
+    const endAngle = cumPct * 2 * Math.PI - Math.PI / 2
+
+    const color = BUSINESS_PALETTE[item.id]
+      ?? BUSINESS_PALETTE[item.name.toLowerCase().replace(/[^a-z]/g, '-')]
+      ?? FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length]
+
+    const isFullCircle = items.length === 1
+    let path: string
+    if (isFullCircle) {
+      // Two arcs make a full donut
+      path = `
+        M ${cx - outerR} ${cy}
+        A ${outerR} ${outerR} 0 1 1 ${cx + outerR} ${cy}
+        A ${outerR} ${outerR} 0 1 1 ${cx - outerR} ${cy}
+        Z
+        M ${cx - innerR} ${cy}
+        A ${innerR} ${innerR} 0 1 0 ${cx + innerR} ${cy}
+        A ${innerR} ${innerR} 0 1 0 ${cx - innerR} ${cy}
+        Z
+      `
+    } else {
+      const x1Out = cx + outerR * Math.cos(startAngle)
+      const y1Out = cy + outerR * Math.sin(startAngle)
+      const x2Out = cx + outerR * Math.cos(endAngle)
+      const y2Out = cy + outerR * Math.sin(endAngle)
+      const x1In = cx + innerR * Math.cos(endAngle)
+      const y1In = cy + innerR * Math.sin(endAngle)
+      const x2In = cx + innerR * Math.cos(startAngle)
+      const y2In = cy + innerR * Math.sin(startAngle)
+      const largeArc = pct > 0.5 ? 1 : 0
+      path = `
+        M ${x1Out} ${y1Out}
+        A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2Out} ${y2Out}
+        L ${x1In} ${y1In}
+        A ${innerR} ${innerR} 0 ${largeArc} 0 ${x2In} ${y2In}
+        Z
+      `
+    }
+
+    return { path, color, pct, ...item }
+  })
+
+  return (
+    <div className="rounded-[10px] border border-[var(--color-border-2)] bg-[var(--color-panel-2)] p-4">
+      <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--color-ink)]">{title}</h3>
+      <p className="mt-0.5 text-[11.5px] text-[var(--color-ink-3)]">{subtitle}</p>
+
+      <div className="mt-3 flex items-center gap-4">
+        <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="shrink-0" role="img" aria-label={`${title} donut chart`}>
+          {slices.map((s, i) => (
+            <path key={i} d={s.path} fill={s.color} fillRule="evenodd" />
+          ))}
+          {/* Centre total */}
+          <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill="var(--color-ink-3)">
+            Total
+          </text>
+          <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="600"
+                fill={positive ? 'var(--color-pos)' : 'var(--color-neg)'}
+                style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {formatRand(total, true)}
+          </text>
+        </svg>
+
+        <div className="flex flex-1 flex-col gap-1.5">
+          {slices.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="truncate text-[12px] text-[var(--color-ink)]">{s.name}</span>
+              </div>
+              <span className="shrink-0 text-[11px] font-medium tabular-nums text-[var(--color-ink-2)]">
+                {(s.pct * 100).toFixed(0)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Year-over-year grouped bar chart — revenue + expense bars side by side per year.
+ */
+function YearGroupedBars({ years }: {
+  years: Array<{ year: number; revenueCents: number; expenseCents: number; netCents: number }>
+}) {
+  if (years.length === 0) return <EmptyState message="No years to compare." />
+
+  const maxValue = Math.max(
+    ...years.flatMap((y) => [y.revenueCents, Math.abs(y.expenseCents)])
+  )
+  if (maxValue === 0) return <EmptyState message="No values." />
+
+  const W = 700
+  const H = 240
+  const padX = 50
+  const padTop = 12
+  const padBottom = 38
+  const innerW = W - padX * 2
+  const innerH = H - padTop - padBottom
+
+  const groupWidth = innerW / years.length
+  const barWidth = Math.min(28, (groupWidth - 12) / 2)
+  const yFor = (val: number) => padTop + innerH - (val / maxValue) * innerH
+
+  // Y ticks
+  const tickValues = [0, 0.25, 0.5, 0.75, 1].map((t) => t * maxValue)
+
+  return (
+    <div className="overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ minWidth: '320px', maxHeight: '260px' }}
+        preserveAspectRatio="xMinYMid meet"
+        role="img"
+        aria-label="Year-over-year revenue vs expense"
+      >
+        {/* Gridlines + Y labels */}
+        {tickValues.map((tv, i) => (
+          <g key={i}>
+            <line
+              x1={padX}
+              x2={W - padX}
+              y1={yFor(tv)}
+              y2={yFor(tv)}
+              stroke="var(--color-border)"
+              strokeDasharray="2 4"
+            />
+            <text
+              x={padX - 6}
+              y={yFor(tv)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize="10"
+              fill="var(--color-ink-3)"
+              style={{ fontVariantNumeric: 'tabular-nums' }}
+            >
+              {formatRand(tv, true)}
+            </text>
+          </g>
+        ))}
+
+        {/* Bars */}
+        {years.map((y, idx) => {
+          const groupCx = padX + groupWidth * idx + groupWidth / 2
+          const revX = groupCx - barWidth - 2
+          const expX = groupCx + 2
+          const revH = (y.revenueCents / maxValue) * innerH
+          const expH = (Math.abs(y.expenseCents) / maxValue) * innerH
+          const baseY = padTop + innerH
+          const isProfit = y.netCents >= 0
+          return (
+            <g key={y.year}>
+              {/* Revenue bar */}
+              <rect
+                x={revX}
+                y={baseY - revH}
+                width={barWidth}
+                height={revH}
+                fill="var(--color-pos)"
+                rx="2"
+              />
+              <text
+                x={revX + barWidth / 2}
+                y={baseY - revH - 4}
+                textAnchor="middle"
+                fontSize="9"
+                fill="var(--color-pos)"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {formatRand(y.revenueCents, true)}
+              </text>
+
+              {/* Expense bar */}
+              <rect
+                x={expX}
+                y={baseY - expH}
+                width={barWidth}
+                height={expH}
+                fill="var(--color-neg)"
+                rx="2"
+              />
+              <text
+                x={expX + barWidth / 2}
+                y={baseY - expH - 4}
+                textAnchor="middle"
+                fontSize="9"
+                fill="var(--color-neg)"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {formatRand(y.expenseCents, true)}
+              </text>
+
+              {/* X label: year + net */}
+              <text
+                x={groupCx}
+                y={baseY + 14}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="500"
+                fill="var(--color-ink)"
+              >
+                {y.year}
+              </text>
+              <text
+                x={groupCx}
+                y={baseY + 26}
+                textAnchor="middle"
+                fontSize="9"
+                fill={isProfit ? 'var(--color-pos)' : 'var(--color-neg)'}
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                Net {signedRand(y.netCents, true)}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Legend */}
+        <g transform={`translate(${padX}, ${padTop - 6})`}>
+          <rect x="0" y="-4" width="10" height="10" fill="var(--color-pos)" rx="2" />
+          <text x="14" y="4" fontSize="10" fill="var(--color-ink-2)">Revenue</text>
+          <rect x="78" y="-4" width="10" height="10" fill="var(--color-neg)" rx="2" />
+          <text x="92" y="4" fontSize="10" fill="var(--color-ink-2)">Expense</text>
+        </g>
+      </svg>
     </div>
   )
 }
