@@ -117,6 +117,10 @@ const SUPPLIERS: SupplierDef[] = [
     website: 'https://www.telkom.co.za',
     aliases: ['TELKOM MOBILE'],
     notes: 'Telkom SA SOC Ltd (Mobile division) — 3rd-largest MNO in SA behind Vodacom and MTN (~24m subscribers). Mobile, fixed-line, fibre, ADSL, 5G FWA. HQ Centurion. Mobile launched 2010 as 8ta, rebranded to Telkom Mobile. Partially state-owned.' },
+  { name: 'MTN',
+    website: 'https://www.mtn.co.za',
+    aliases: ['MTN '],
+    notes: 'MTN Group Limited — second-largest mobile network operator in SA (behind Vodacom). Prepaid airtime/data for staff phones used in Fastway courier operations. HQ Johannesburg.' },
 
   // ── Software / Subscriptions ────────────────────────────────────────────────
   { name: 'GoDaddy',
@@ -288,13 +292,22 @@ const RULES: RuleDef[] = [
     category: 'Telephone / Data', supplier: 'Vox Telecom',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
   { name: 'Telkom Mobile — Prepaid', descriptionPattern: 'TELKOM MOBILE',
-    category: 'Telephone / Data', supplier: 'Telkom Mobile',
+    category: 'Telephone / Data', supplier: 'Telkom Mobile', business: 'fastway',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'Vodacom — Prepaid', descriptionPattern: 'VODACOM',
+    category: 'Telephone / Data', supplier: 'Vodacom', business: 'fastway',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'Vodacom prepaid (VOD PREPAID)', descriptionPattern: 'VOD PREPAID',
+    category: 'Telephone / Data', supplier: 'Vodacom', business: 'fastway',
+    transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+  { name: 'MTN — Prepaid', descriptionPattern: 'MTN ',
+    category: 'Telephone / Data', supplier: 'MTN', business: 'fastway',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
   { name: 'Prepaid Mobile (generic VAS)', descriptionPattern: 'VAS00',
-    category: 'Telephone / Data',
+    category: 'Telephone / Data', business: 'fastway',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.GENERIC },
   { name: 'Prepaid Mobile Purchase (generic)', descriptionPattern: 'PREPAID MOBILE PURCHASE',
-    category: 'Telephone / Data',
+    category: 'Telephone / Data', business: 'fastway',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.GENERIC },
 
   // ─── SOFTWARE / SUBSCRIPTIONS ──────────────────────────────────────────────
@@ -305,9 +318,14 @@ const RULES: RuleDef[] = [
     category: 'Software / Subscriptions', supplier: 'Wix.com',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
+  // ─── REVENUE — incoming customer payments ─────────────────────────────────
+  { name: 'Capitec — customer EFT (Fastway)', descriptionPattern: 'CAPITEC',
+    category: 'Courier Revenue', business: 'fastway',
+    transactionType: 'REVENUE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
+
   // ─── MARKETING ─────────────────────────────────────────────────────────────
   { name: 'Facebook / Meta Ads', descriptionPattern: 'FACEBK',
-    category: 'Marketing', supplier: 'Meta (Facebook Ads)',
+    category: 'Marketing', supplier: 'Meta (Facebook Ads)', business: 'opulent-beauty',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
   { name: 'Jetline — Printing/Signage', descriptionPattern: 'JETLINE',
     category: 'Marketing', supplier: 'Jetline',
@@ -328,20 +346,22 @@ const RULES: RuleDef[] = [
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
 
   // ─── SALARIES ──────────────────────────────────────────────────────────────
+  // Thabang John Moreo runs Fastway operations (driver/mechanic) — salary attributed to Fastway.
+  // Everyone else works the Opulent Beauty salon — their salaries attributed there.
   { name: 'Salary: Thabang John Moreo', descriptionPattern: 'THABANG JOHN MORE',
-    category: 'Salaries / Wages',
+    category: 'Salaries / Wages', business: 'fastway',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.STAFF },
   { name: 'Salary: Tunnel Mangozvana', descriptionPattern: 'TUNNEL MANGOZVAN',
-    category: 'Salaries / Wages',
+    category: 'Salaries / Wages', business: 'opulent-beauty',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.STAFF },
   { name: 'Salary: Irene Sarifo', descriptionPattern: 'IRENE SARIFO',
-    category: 'Salaries / Wages',
+    category: 'Salaries / Wages', business: 'opulent-beauty',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.STAFF },
   { name: 'Salary: C Nyoni Charlotte', descriptionPattern: 'C NYONI',
-    category: 'Salaries / Wages',
+    category: 'Salaries / Wages', business: 'opulent-beauty',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.STAFF },
   { name: 'Salary: Tryness Tembo', descriptionPattern: 'TRYNESS TEMBO',
-    category: 'Salaries / Wages',
+    category: 'Salaries / Wages', business: 'opulent-beauty',
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.STAFF },
 
   // ─── PERSONAL EXPENSES ─────────────────────────────────────────────────────
@@ -351,8 +371,10 @@ const RULES: RuleDef[] = [
   { name: 'Personal: Crazy Plastic', descriptionPattern: 'CRAZY PLASTIC',
     category: 'Personal Expense', isPersonal: true,
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
-  { name: 'Personal: Bling Girl', descriptionPattern: 'BLING GIRL',
-    category: 'Personal Expense', isPersonal: true,
+  // Bling Girl — beauty supplier for the Opulent Beauty salon (NOT a personal expense)
+  { name: 'Bling Girl — Opulent Beauty stock', descriptionPattern: 'BLING GIRL',
+    category: 'Cost of Sales / Materials', business: 'opulent-beauty',
+    isPersonal: false,
     transactionType: 'EXPENSE', trustedAutoReview: true, priority: P.SPECIFIC_MERCHANT },
   { name: 'Personal: Bestco Lifestyle', descriptionPattern: 'BESTCO LIFEST',
     category: 'Personal Expense', isPersonal: true,
@@ -416,6 +438,7 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
     'Trans Natal (no-dash variant)',
     'Trans-Natal Express (sub-contracted courier)',
     'Transnatal Glass Factory (homeware wholesale)',
+    'Personal: Bling Girl', // renamed → "Bling Girl — Opulent Beauty stock"
   ]
   await prisma.transactionRule.deleteMany({
     where: { tenantId: tenant.id, name: { in: ORPHAN_RULE_NAMES } },
@@ -491,9 +514,16 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
     }
   }
 
-  // Look up Standard Bank from existing base seed
-  const stdBank = await prisma.supplier.findFirst({ where: { tenantId: tenant.id, name: 'Standard Bank' } })
-  if (stdBank) supplierIdByName['Standard Bank'] = stdBank.id
+  // Fetch ALL suppliers in this tenant so rules can reference base-seed
+  // suppliers (Standard Bank, Vodacom, Pick n Pay, Engen Petroleum, Takealot,
+  // Builders Warehouse) by name without needing them in the SUPPLIERS array.
+  const allTenantSuppliers = await prisma.supplier.findMany({
+    where: { tenantId: tenant.id },
+    select: { id: true, name: true },
+  })
+  for (const s of allTenantSuppliers) {
+    if (!supplierIdByName[s.name]) supplierIdByName[s.name] = s.id
+  }
 
   // Build category and business lookups
   const categories = await prisma.category.findMany({ where: { tenantId: tenant.id }, select: { id: true, name: true } })
