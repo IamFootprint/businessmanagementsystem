@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
 import { TrendingUp, TrendingDown, Wallet, Receipt, AlertCircle, Building2, BarChart3 } from 'lucide-react'
 
@@ -26,6 +27,9 @@ type AnalyticsOverview = {
   yearTotals: Array<{
     year: number; revenueCents: number; expenseCents: number; netCents: number; transactionCount: number
   }>
+  businesses: Array<{ id: string; slug: string; name: string }>
+  filter: { businessId: string | null }
+  unassignedCount: number
 }
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -48,12 +52,65 @@ const BUSINESS_COLORS: Record<string, string> = {
 }
 const FALLBACK = ['#d97706','#db2777','#0891b2','#7c3aed','#16a34a','#dc2626']
 
-export default async function InsightsPage() {
+// ─── Period presets ──────────────────────────────────────────────────────────
+
+type PeriodKey = 'all' | 'month' | 'quarter' | '6m' | 'ytd' | string // string = year e.g. "2025"
+
+function computePeriodRange(period: string | undefined, now = new Date()): { from?: string; to?: string; label: string } {
+  if (!period || period === 'all') return { label: 'All time' }
+
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+
+  if (period === 'month') {
+    const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+    return { from: fmt(from), to: fmt(today), label: 'This month' }
+  }
+  if (period === 'quarter') {
+    const qStartMonth = Math.floor(today.getUTCMonth() / 3) * 3
+    const from = new Date(Date.UTC(today.getUTCFullYear(), qStartMonth, 1))
+    return { from: fmt(from), to: fmt(today), label: 'This quarter' }
+  }
+  if (period === '6m') {
+    const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5, 1))
+    return { from: fmt(from), to: fmt(today), label: 'Last 6 months' }
+  }
+  if (period === 'ytd') {
+    const from = new Date(Date.UTC(today.getUTCFullYear(), 0, 1))
+    return { from: fmt(from), to: fmt(today), label: `YTD ${today.getUTCFullYear()}` }
+  }
+  // Year-specific: "2024", "2023", etc.
+  if (/^\d{4}$/.test(period)) {
+    const yr = parseInt(period, 10)
+    return {
+      from: `${yr}-01-01`,
+      to: `${yr}-12-31`,
+      label: String(yr),
+    }
+  }
+  return { label: 'All time' }
+}
+
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ businessId?: string; period?: string }>
+}) {
+  const { businessId, period } = await searchParams
+  const periodInfo = computePeriodRange(period)
+
+  // Build the analytics request URL
+  const qs = new URLSearchParams()
+  if (businessId) qs.set('businessId', businessId)
+  if (periodInfo.from) qs.set('from', periodInfo.from)
+  if (periodInfo.to) qs.set('to', periodInfo.to)
+  const apiPath = qs.toString() ? `/analytics/overview?${qs}` : '/analytics/overview'
+
   let data: AnalyticsOverview | null = null
   let error: string | null = null
 
   try {
-    data = await apiRequestAuthenticated<AnalyticsOverview>('/analytics/overview')
+    data = await apiRequestAuthenticated<AnalyticsOverview>(apiPath)
   } catch (err) {
     error = err instanceof Error ? err.message : 'Failed to load analytics'
   }
@@ -65,6 +122,20 @@ export default async function InsightsPage() {
         <p className="text-[14px]" style={{ color: 'var(--color-ink-3)' }}>{error ?? 'No data'}</p>
       </div>
     )
+  }
+
+  // Derive available year chips from data
+  const availableYears = data.yearTotals.map((y) => y.year).sort((a, b) => b - a)
+
+  // Build chip helper that preserves the OTHER filter when toggling
+  const chipHref = (params: { businessId?: string; period?: string }) => {
+    const next = new URLSearchParams()
+    const b = params.businessId !== undefined ? params.businessId : businessId
+    const p = params.period !== undefined ? params.period : period
+    if (b) next.set('businessId', b)
+    if (p) next.set('period', p)
+    const s = next.toString()
+    return s ? `?${s}` : '?'
   }
 
   const kpis = data.kpis
@@ -80,6 +151,13 @@ export default async function InsightsPage() {
   const totalRev = data.perBusiness.reduce((s, b) => s + b.revenueCents, 0)
   const totalExp = Math.abs(data.perBusiness.reduce((s, b) => s + b.expenseCents, 0))
 
+  // Build subtitle reflecting active filters
+  const activeBiz = data.businesses.find((b) => b.id === businessId)
+  const filterLabel = [
+    activeBiz?.name ?? (businessId === 'unassigned' ? 'Unassigned' : null),
+    periodInfo.label !== 'All time' ? periodInfo.label : null,
+  ].filter(Boolean).join(' · ')
+
   return (
     <div className="flex flex-col gap-4 px-4 pb-6 pt-5">
       {/* Header */}
@@ -88,8 +166,63 @@ export default async function InsightsPage() {
           Insights
         </h1>
         <p className="mt-1 text-[12px]" style={{ color: 'var(--color-ink-3)' }}>
-          {kpis.transactionCount.toLocaleString()} business txns · {kpis.categorisedPct}% auto-categorised · {data.yearTotals.length} years
+          {filterLabel
+            ? <>{filterLabel} · {kpis.transactionCount.toLocaleString()} txns</>
+            : <>{kpis.transactionCount.toLocaleString()} business txns · {kpis.categorisedPct}% auto-categorised · {data.yearTotals.length} years</>
+          }
         </p>
+      </div>
+
+      {/* Business filter */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: 'var(--color-ink-3)' }}>
+          Business unit
+        </p>
+        <div className="flex gap-1.5 overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <FilterChip
+            href={chipHref({ businessId: '' })}
+            active={!businessId}
+            label="All"
+          />
+          {data.businesses.map((b) => (
+            <FilterChip
+              key={b.id}
+              href={chipHref({ businessId: b.id })}
+              active={businessId === b.id}
+              label={b.name}
+              color={BUSINESS_COLORS[b.slug]}
+            />
+          ))}
+          {data.unassignedCount > 0 && (
+            <FilterChip
+              href={chipHref({ businessId: 'unassigned' })}
+              active={businessId === 'unassigned'}
+              label={`Unassigned (${data.unassignedCount})`}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Period filter */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: 'var(--color-ink-3)' }}>
+          Period
+        </p>
+        <div className="flex gap-1.5 overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <FilterChip href={chipHref({ period: '' })}        active={!period || period === 'all'} label="All time" />
+          <FilterChip href={chipHref({ period: 'month' })}   active={period === 'month'}          label="This month" />
+          <FilterChip href={chipHref({ period: 'quarter' })} active={period === 'quarter'}        label="This quarter" />
+          <FilterChip href={chipHref({ period: '6m' })}      active={period === '6m'}             label="Last 6 mo" />
+          <FilterChip href={chipHref({ period: 'ytd' })}     active={period === 'ytd'}            label="YTD" />
+          {availableYears.map((y) => (
+            <FilterChip
+              key={y}
+              href={chipHref({ period: String(y) })}
+              active={period === String(y)}
+              label={String(y)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* KPIs */}
@@ -183,6 +316,23 @@ export default async function InsightsPage() {
 }
 
 // ─── Components ──────────────────────────────────────────────────────────
+
+function FilterChip({ href, active, label, color }: { href: string; active: boolean; label: string; color?: string }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      className="shrink-0 rounded-pill px-3 py-1.5 text-[12px] font-medium transition-colors active:opacity-70"
+      style={
+        active
+          ? { background: color ?? 'var(--color-accent)', color: 'var(--color-accent-fg, #fff)', border: 'none' }
+          : { background: 'var(--color-surface-2)', color: 'var(--color-ink-2)', border: '1px solid var(--color-border)' }
+      }
+    >
+      {label}
+    </Link>
+  )
+}
 
 function KpiCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (

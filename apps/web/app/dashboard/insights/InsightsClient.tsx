@@ -1,9 +1,16 @@
 'use client'
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { TrendingUp, TrendingDown, Wallet, Receipt, Building2, BarChart3 } from 'lucide-react'
 import type { AnalyticsOverview } from './page'
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const BUSINESS_COLORS_HEX: Record<string, string> = {
+  fastway: '#d97706',
+  'opulent-beauty': '#db2777',
+  'opulent-homeware': '#0891b2',
+  'kgolaentle-holdings-group': '#7c3aed',
+}
 
 function formatRand(cents: number, compact = false): string {
   const r = Math.round(Math.abs(cents) / 100)
@@ -17,15 +24,14 @@ function signedRand(cents: number, compact = false): string {
   return `${sign}${formatRand(cents, compact)}`
 }
 
-export function InsightsClient({ data }: { data: AnalyticsOverview }) {
-  const allYears = useMemo(() => data.yearTotals.map((y) => y.year).sort((a, b) => b - a), [data.yearTotals])
-  const [selectedYear, setSelectedYear] = useState<number | 'all'>('all')
-
-  // Filter monthly P&L by selected year
-  const monthlyForChart = useMemo(() => {
-    if (selectedYear === 'all') return data.monthlyPnL
-    return data.monthlyPnL.filter((m) => m.yearMonth.startsWith(String(selectedYear)))
-  }, [data.monthlyPnL, selectedYear])
+export function InsightsClient({ data, businessId, period }: {
+  data: AnalyticsOverview
+  businessId?: string
+  period?: string
+}) {
+  const router = useRouter()
+  const monthlyForChart = data.monthlyPnL
+  const kpis = data.kpis
 
   // For the bar chart we need a max scale
   const maxMonthly = useMemo(() => {
@@ -36,36 +42,83 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
     return max
   }, [monthlyForChart])
 
-  // KPIs for selected year (or all-time)
-  const kpis = useMemo(() => {
-    if (selectedYear === 'all') return data.kpis
-    const yr = data.yearTotals.find((y) => y.year === selectedYear)
-    if (!yr) return data.kpis
-    return {
-      totalRevenueCents: yr.revenueCents,
-      totalExpenseCents: yr.expenseCents,
-      netCents: yr.netCents,
-      transactionCount: yr.transactionCount,
-      categorisedPct: data.kpis.categorisedPct,
-      personalCount: data.kpis.personalCount,
-    }
-  }, [selectedYear, data])
+  const setFilter = (next: { businessId?: string; period?: string }) => {
+    const sp = new URLSearchParams()
+    const b = next.businessId !== undefined ? next.businessId : businessId
+    const p = next.period !== undefined ? next.period : period
+    if (b) sp.set('businessId', b)
+    if (p) sp.set('period', p)
+    const s = sp.toString()
+    router.push(s ? `?${s}` : '?')
+  }
+
+  const availableYears = useMemo(
+    () => data.yearTotals.map((y) => y.year).sort((a, b) => b - a),
+    [data.yearTotals]
+  )
+
+  const activeBiz = data.businesses.find((b) => b.id === businessId)
+  const periodLabel =
+    period === 'month' ? 'This month' :
+    period === 'quarter' ? 'This quarter' :
+    period === '6m' ? 'Last 6 months' :
+    period === 'ytd' ? `YTD` :
+    period && /^\d{4}$/.test(period) ? period : null
+  const filterLabel = [activeBiz?.name ?? (businessId === 'unassigned' ? 'Unassigned' : null), periodLabel].filter(Boolean).join(' · ')
 
   return (
     <div className="flex flex-col gap-5 px-[var(--page-gutter)] py-6">
-      {/* Page head + year filter */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[var(--color-ink)]">Insights</h1>
-          <p className="mt-1 text-[13px] text-[var(--color-ink-3)]">
-            Financial overview across {data.yearTotals.length} year{data.yearTotals.length !== 1 ? 's' : ''} of bank data —
-            {' '}{data.kpis.transactionCount.toLocaleString()} business transactions, {data.kpis.categorisedPct}% auto-categorised
-          </p>
+      {/* Page head */}
+      <div>
+        <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[var(--color-ink)]">Insights</h1>
+        <p className="mt-1 text-[13px] text-[var(--color-ink-3)]">
+          {filterLabel
+            ? <>{filterLabel} · {data.kpis.transactionCount.toLocaleString()} transactions</>
+            : <>Financial overview across {data.yearTotals.length} year{data.yearTotals.length !== 1 ? 's' : ''} of bank data — {data.kpis.transactionCount.toLocaleString()} business transactions, {data.kpis.categorisedPct}% auto-categorised</>
+          }
+        </p>
+      </div>
+
+      {/* Business unit filter */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--color-ink-3)]">Business unit</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <YearChip label="All" active={!businessId} onClick={() => setFilter({ businessId: '' })} />
+          {data.businesses.map((b) => (
+            <YearChip
+              key={b.id}
+              label={b.name}
+              active={businessId === b.id}
+              onClick={() => setFilter({ businessId: b.id })}
+              color={BUSINESS_COLORS_HEX[b.slug]}
+            />
+          ))}
+          {data.unassignedCount > 0 && (
+            <YearChip
+              label={`Unassigned (${data.unassignedCount})`}
+              active={businessId === 'unassigned'}
+              onClick={() => setFilter({ businessId: 'unassigned' })}
+            />
+          )}
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <YearChip label="All time" active={selectedYear === 'all'} onClick={() => setSelectedYear('all')} />
-          {allYears.map((y) => (
-            <YearChip key={y} label={String(y)} active={selectedYear === y} onClick={() => setSelectedYear(y)} />
+      </div>
+
+      {/* Period filter */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--color-ink-3)]">Period</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <YearChip label="All time"      active={!period || period === 'all'} onClick={() => setFilter({ period: '' })} />
+          <YearChip label="This month"    active={period === 'month'}           onClick={() => setFilter({ period: 'month' })} />
+          <YearChip label="This quarter"  active={period === 'quarter'}         onClick={() => setFilter({ period: 'quarter' })} />
+          <YearChip label="Last 6 months" active={period === '6m'}              onClick={() => setFilter({ period: '6m' })} />
+          <YearChip label="YTD"           active={period === 'ytd'}             onClick={() => setFilter({ period: 'ytd' })} />
+          {availableYears.map((y) => (
+            <YearChip
+              key={y}
+              label={String(y)}
+              active={period === String(y)}
+              onClick={() => setFilter({ period: String(y) })}
+            />
           ))}
         </div>
       </div>
@@ -100,7 +153,7 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
 
       {/* Cumulative net trend */}
       <Section
-        title={selectedYear === 'all' ? 'Cumulative net trend' : `Cumulative net — ${selectedYear}`}
+        title={filterLabel ? `Cumulative net — ${filterLabel}` : 'Cumulative net trend'}
         subtitle="How the business' net position has changed over time"
       >
         {monthlyForChart.length === 0 ? (
@@ -112,7 +165,7 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
 
       {/* Monthly P&L chart */}
       <Section
-        title={selectedYear === 'all' ? 'Monthly P&L' : `Monthly P&L — ${selectedYear}`}
+        title={filterLabel ? `Monthly P&L — ${filterLabel}` : 'Monthly P&L'}
         subtitle={`${monthlyForChart.length} months · green = revenue, red = expenses`}
       >
         {monthlyForChart.length === 0 ? (
@@ -215,15 +268,16 @@ export function InsightsClient({ data }: { data: AnalyticsOverview }) {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function YearChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function YearChip({ label, active, onClick, color }: {
+  label: string; active: boolean; onClick: () => void; color?: string
+}) {
   return (
     <button
       onClick={onClick}
       className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
-        active
-          ? 'bg-[var(--color-accent)] text-white'
-          : 'border border-[var(--color-border)] text-[var(--color-ink-2)] hover:bg-[var(--color-panel-2)]'
+        active ? 'text-white' : 'border border-[var(--color-border)] text-[var(--color-ink-2)] hover:bg-[var(--color-panel-2)]'
       }`}
+      style={active ? { backgroundColor: color ?? 'var(--color-accent)' } : undefined}
     >
       {label}
     </button>

@@ -46,14 +46,54 @@ export type AnalyticsOverview = {
     netCents: number
     transactionCount: number
   }>
+  businesses: Array<{ id: string; slug: string; name: string }>
+  filter: { businessId: string | null; from: string | null; to: string | null }
+  unassignedCount: number
 }
 
-export default async function InsightsPage() {
+function computePeriodRange(period: string | undefined, now = new Date()): { from?: string; to?: string; label: string } {
+  if (!period || period === 'all') return { label: 'All time' }
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  if (period === 'month') {
+    return { from: fmt(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))), to: fmt(today), label: 'This month' }
+  }
+  if (period === 'quarter') {
+    const qStartMonth = Math.floor(today.getUTCMonth() / 3) * 3
+    return { from: fmt(new Date(Date.UTC(today.getUTCFullYear(), qStartMonth, 1))), to: fmt(today), label: 'This quarter' }
+  }
+  if (period === '6m') {
+    return { from: fmt(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5, 1))), to: fmt(today), label: 'Last 6 months' }
+  }
+  if (period === 'ytd') {
+    return { from: fmt(new Date(Date.UTC(today.getUTCFullYear(), 0, 1))), to: fmt(today), label: `YTD ${today.getUTCFullYear()}` }
+  }
+  if (/^\d{4}$/.test(period)) {
+    const yr = parseInt(period, 10)
+    return { from: `${yr}-01-01`, to: `${yr}-12-31`, label: String(yr) }
+  }
+  return { label: 'All time' }
+}
+
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ businessId?: string; period?: string }>
+}) {
+  const { businessId, period } = await searchParams
+  const periodInfo = computePeriodRange(period)
+
+  const qs = new URLSearchParams()
+  if (businessId) qs.set('businessId', businessId)
+  if (periodInfo.from) qs.set('from', periodInfo.from)
+  if (periodInfo.to) qs.set('to', periodInfo.to)
+  const apiPath = qs.toString() ? `/analytics/overview?${qs}` : '/analytics/overview'
+
   let data: AnalyticsOverview | null = null
   let loadError: string | null = null
 
   try {
-    data = await apiRequestAuthenticated<AnalyticsOverview>('/analytics/overview')
+    data = await apiRequestAuthenticated<AnalyticsOverview>(apiPath)
   } catch (err) {
     loadError = err instanceof Error ? err.message : 'Failed to load analytics'
   }
@@ -77,5 +117,5 @@ export default async function InsightsPage() {
     )
   }
 
-  return <InsightsClient data={data} />
+  return <InsightsClient data={data} businessId={businessId} period={period} />
 }

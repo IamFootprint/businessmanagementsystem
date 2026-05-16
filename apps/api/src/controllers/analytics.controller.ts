@@ -16,11 +16,27 @@ import { prisma } from '@bms/db'
 export async function analyticsOverview(c: Context<AppEnv>) {
   const user = c.get('user')
 
-  // Get bank account IDs for this tenant
-  const bankAccounts = await prisma.bankAccount.findMany({
-    where: { tenantId: user.tenantId },
-    select: { id: true },
-  })
+  // Optional filter: scope the entire dashboard to a single business unit.
+  // 'unassigned' is a special value meaning transactions with no businessId.
+  const businessFilter = c.req.query('businessId')
+  // Optional date-range filter (YYYY-MM-DD inclusive)
+  const fromStr = c.req.query('from')
+  const toStr = c.req.query('to')
+  const fromDate = fromStr && /^\d{4}-\d{2}-\d{2}$/.test(fromStr) ? new Date(`${fromStr}T00:00:00Z`) : null
+  const toDate = toStr && /^\d{4}-\d{2}-\d{2}$/.test(toStr) ? new Date(`${toStr}T23:59:59.999Z`) : null
+
+  // Get bank account IDs and businesses for this tenant
+  const [bankAccounts, businesses] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    }),
+    prisma.business.findMany({
+      where: { tenantId: user.tenantId, active: true },
+      select: { id: true, slug: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+  ])
   const bankAccountIds = bankAccounts.map((b) => b.id)
   if (bankAccountIds.length === 0) {
     return c.json({
@@ -30,12 +46,14 @@ export async function analyticsOverview(c: Context<AppEnv>) {
       topSuppliers: [],
       perBusiness: [],
       yearTotals: [],
+      businesses: [],
+      filter: { businessId: null },
     })
   }
 
   // Fetch ALL transactions for this tenant (the dataset is ~3000 — fine to aggregate in-memory)
   // For larger datasets we'd push more into SQL via raw queries
-  const txs = await prisma.transaction.findMany({
+  const allTxs = await prisma.transaction.findMany({
     where: { bankAccountId: { in: bankAccountIds } },
     select: {
       id: true,
@@ -52,6 +70,18 @@ export async function analyticsOverview(c: Context<AppEnv>) {
       business: { select: { id: true, slug: true, name: true } },
     },
     orderBy: { transactionDate: 'asc' },
+  })
+
+  // Apply business + date filters early so the rest of the aggregation is scoped
+  const txs = allTxs.filter((t) => {
+    if (businessFilter === 'unassigned') {
+      if (t.businessId !== null) return false
+    } else if (businessFilter) {
+      if (t.businessId !== businessFilter) return false
+    }
+    if (fromDate && t.transactionDate < fromDate) return false
+    if (toDate && t.transactionDate > toDate) return false
+    return true
   })
 
   // Filter out personal expenses for business analytics
@@ -162,6 +192,9 @@ export async function analyticsOverview(c: Context<AppEnv>) {
       transactionCount: v.count,
     }))
 
+  // Include count of unassigned txns so the UI can show a helpful filter chip
+  const unassignedCount = allTxs.filter((t) => t.businessId === null && !t.isPersonal).length
+
   return c.json({
     kpis: {
       totalRevenueCents,
@@ -176,5 +209,12 @@ export async function analyticsOverview(c: Context<AppEnv>) {
     topSuppliers,
     perBusiness,
     yearTotals,
+    businesses,
+    filter: {
+      businessId: businessFilter ?? null,
+      from: fromStr ?? null,
+      to: toStr ?? null,
+    },
+    unassignedCount,
   })
 }
