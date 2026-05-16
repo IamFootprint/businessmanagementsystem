@@ -31,6 +31,67 @@ export async function seedRulesAdmin(c: Context<AppEnv>) {
 }
 
 /**
+ * POST /admin/backfill-business-ids — fills businessId=null on reviewed transactions
+ * by re-matching cleanDescription against all rules that have a businessId.
+ *
+ * Only updates businessId (does not touch category, supplier, reviewStatus).
+ * Safe to run multiple times — skips transactions that already have a businessId.
+ * Restricted to TENANT_OWNER.
+ */
+export async function backfillBusinessIds(c: Context<AppEnv>) {
+  const user = c.get('user')
+
+  const bankAccountIds = (
+    await prisma.bankAccount.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })
+  ).map((b) => b.id)
+
+  const rules = await prisma.transactionRule.findMany({
+    where: { tenantId: user.tenantId, active: true, businessId: { not: null } },
+    select: { descriptionPattern: true, businessId: true, priority: true },
+    orderBy: { priority: 'desc' },
+  })
+
+  if (rules.length === 0) {
+    return c.json({ ok: true, updated: 0, message: 'No rules with businessId found' })
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: { bankAccountId: { in: bankAccountIds }, businessId: null },
+    select: { id: true, cleanDescription: true },
+  })
+
+  const updates: { id: string; businessId: string }[] = []
+  for (const tx of transactions) {
+    const desc = (tx.cleanDescription ?? '').toUpperCase()
+    for (const rule of rules) {
+      if (desc.includes(rule.descriptionPattern.toUpperCase())) {
+        updates.push({ id: tx.id, businessId: rule.businessId! })
+        break
+      }
+    }
+  }
+
+  if (updates.length === 0) {
+    return c.json({ ok: true, updated: 0, scanned: transactions.length })
+  }
+
+  let updated = 0
+  const BATCH = 50
+  for (let i = 0; i < updates.length; i += BATCH) {
+    const batch = updates.slice(i, i + BATCH)
+    await Promise.allSettled(
+      batch.map((u) => prisma.transaction.update({ where: { id: u.id }, data: { businessId: u.businessId } }))
+    )
+    updated += batch.length
+  }
+
+  return c.json({ ok: true, updated, scanned: transactions.length })
+}
+
+/**
  * POST /admin/clear-transaction-data — destructively clears all transactions,
  * statement imports, import rows, audit events and receipts for the current
  * tenant. Keeps tenants, businesses, bank accounts, users, categories,
