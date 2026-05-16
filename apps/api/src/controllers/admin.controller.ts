@@ -1,6 +1,9 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
 import { prisma, seedRules } from '@bms/db'
+import { createHash } from 'crypto'
+import { parseStandardBankCsv } from '../lib/csv-parser'
+import { makeTransactionHash, cleanDescription } from '../lib/import-hash'
 
 /**
  * POST /admin/seed-rules — seeds transaction rules from supplier research.
@@ -25,4 +28,292 @@ export async function seedRulesAdmin(c: Context<AppEnv>) {
       500,
     )
   }
+}
+
+/**
+ * POST /admin/clear-transaction-data — destructively clears all transactions,
+ * statement imports, import rows, audit events and receipts for the current
+ * tenant. Keeps tenants, businesses, bank accounts, users, categories,
+ * suppliers, rules, periods — only the imported transaction data is removed.
+ *
+ * Requires query param ?confirm=YES to execute. Restricted to TENANT_OWNER.
+ *
+ * Intended for one-time cleanup of seed test data before importing real
+ * statements. Cannot be undone.
+ */
+export async function clearTransactionDataAdmin(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const confirm = c.req.query('confirm')
+  if (confirm !== 'YES') {
+    return c.json(
+      {
+        ok: false,
+        error: 'Confirmation required',
+        message: 'Append ?confirm=YES to the URL to actually delete data',
+      },
+      400,
+    )
+  }
+
+  try {
+    // Find bank accounts for this tenant (scope all deletes)
+    const bankAccountIds = (
+      await prisma.bankAccount.findMany({
+        where: { tenantId: user.tenantId },
+        select: { id: true },
+      })
+    ).map((b) => b.id)
+
+    // Find transactions in those accounts
+    const txIds = (
+      await prisma.transaction.findMany({
+        where: { bankAccountId: { in: bankAccountIds } },
+        select: { id: true },
+      })
+    ).map((t) => t.id)
+
+    // Find imports
+    const importIds = (
+      await prisma.statementImport.findMany({
+        where: { bankAccountId: { in: bankAccountIds } },
+        select: { id: true },
+      })
+    ).map((i) => i.id)
+
+    // Find receipts linked to these transactions OR uploaded by tenant users
+    // (seed receipts have transactionId set, real receipts may be unlinked)
+    const tenantUserPhones = (
+      await prisma.user.findMany({
+        where: { tenantId: user.tenantId, phone: { not: null } },
+        select: { phone: true },
+      })
+    ).map((u) => u.phone as string)
+
+    // Delete order respects FK constraints:
+    // 1. TransactionAuditEvent (cascade from Transaction)
+    // 2. Receipts linked to transactions in this tenant
+    // 3. StatementImportRow (cascade from StatementImport)
+    // 4. Transactions
+    // 5. StatementImports
+    const auditDeleted = await prisma.transactionAuditEvent.deleteMany({
+      where: { transactionId: { in: txIds } },
+    })
+
+    // Detach receipts from these transactions before deleting them (FK from Receipt → Transaction is optional)
+    const receiptsDetached = await prisma.receipt.updateMany({
+      where: { transactionId: { in: txIds } },
+      data: { transactionId: null },
+    })
+
+    // Now delete receipts that were linked to these transactions OR uploaded by tenant users
+    const receiptsToDelete = await prisma.receipt.findMany({
+      where: {
+        OR: [
+          { uploaderPhone: { in: tenantUserPhones } },
+          // Seed receipts: ID prefix 'seed-receipt-'
+          { id: { startsWith: 'seed-receipt-' } },
+        ],
+      },
+      select: { id: true },
+    })
+    const receiptsDeleted = await prisma.receipt.deleteMany({
+      where: { id: { in: receiptsToDelete.map((r) => r.id) } },
+    })
+
+    const importRowsDeleted = await prisma.statementImportRow.deleteMany({
+      where: { importId: { in: importIds } },
+    })
+
+    const txDeleted = await prisma.transaction.deleteMany({
+      where: { id: { in: txIds } },
+    })
+
+    const importsDeleted = await prisma.statementImport.deleteMany({
+      where: { id: { in: importIds } },
+    })
+
+    return c.json({
+      ok: true,
+      tenantId: user.tenantId,
+      deleted: {
+        transactions: txDeleted.count,
+        statementImports: importsDeleted.count,
+        statementImportRows: importRowsDeleted.count,
+        auditEvents: auditDeleted.count,
+        receipts: receiptsDeleted.count,
+        receiptsDetached: receiptsDetached.count,
+      },
+    })
+  } catch (err) {
+    return c.json(
+      {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Clear failed',
+      },
+      500,
+    )
+  }
+}
+
+/**
+ * POST /admin/bulk-import-csv — fast bulk-import using createMany.
+ *
+ * Avoids per-row round-trips that hang Neon WebSocket connections on Cloudflare
+ * Workers. Takes a multipart form (file, bankAccountId) just like /imports but
+ * batches everything into 3 queries:
+ *   1. findMany — look up duplicates in one round trip
+ *   2. createMany — insert all new transactions in one round trip
+ *   3. createMany — insert all import rows in one round trip
+ *
+ * StatementImportRow.transactionId is NOT populated by this endpoint (would
+ * require an extra findMany). Acceptable trade-off for the speed.
+ *
+ * Restricted to TENANT_OWNER.
+ */
+export async function bulkImportCsvAdmin(c: Context<AppEnv>) {
+  const user = c.get('user')
+
+  let formData: FormData
+  try {
+    formData = await c.req.formData()
+  } catch {
+    return c.json({ error: 'Expected multipart/form-data' }, 400)
+  }
+
+  const file = formData.get('file')
+  const bankAccountId = formData.get('bankAccountId')
+
+  if (!file || typeof file === 'string') return c.json({ error: 'Missing file' }, 400)
+  if (!bankAccountId || typeof bankAccountId !== 'string') return c.json({ error: 'Missing bankAccountId' }, 400)
+
+  // Validate bank account ownership
+  const bankAccount = await prisma.bankAccount.findUnique({
+    where: { id: bankAccountId },
+    select: { tenantId: true },
+  })
+  if (!bankAccount) return c.json({ error: `Bank account not found: ${bankAccountId}` }, 404)
+  if (bankAccount.tenantId !== user.tenantId) return c.json({ error: 'Bank account belongs to different tenant' }, 403)
+
+  let csvText: string
+  try {
+    csvText = await (file as File).text()
+  } catch {
+    return c.json({ error: 'Could not read file' }, 400)
+  }
+
+  let parsed: ReturnType<typeof parseStandardBankCsv>
+  try {
+    parsed = parseStandardBankCsv(csvText)
+  } catch (err) {
+    return c.json({ error: `CSV parse error: ${err instanceof Error ? err.message : 'unknown'}` }, 422)
+  }
+
+  if (parsed.rows.length === 0) {
+    return c.json({ error: 'No transaction rows in CSV' }, 422)
+  }
+
+  // Compute file hash
+  const fileHashStr = createHash('sha256').update(csvText).digest('hex')
+
+  // Build all the work items upfront
+  const items = parsed.rows.map((row) => {
+    const hash = makeTransactionHash({
+      bankAccountId,
+      transactionDate: row.transactionDate,
+      amountCents: row.amountCents,
+      balanceAfterCents: row.balanceAfterCents,
+      rawDescription: row.rawDescription,
+    })
+    return {
+      row,
+      duplicateHash: hash,
+      direction: (row.amountCents >= 0 ? 'CREDIT' : 'DEBIT') as 'CREDIT' | 'DEBIT',
+    }
+  })
+
+  const allHashes = items.map((i) => i.duplicateHash)
+
+  // Step 1: Single findMany to detect duplicates
+  const existing = await prisma.transaction.findMany({
+    where: { duplicateHash: { in: allHashes } },
+    select: { duplicateHash: true },
+  })
+  const existingSet = new Set(existing.map((e) => e.duplicateHash))
+
+  // Step 2: Create StatementImport
+  const statementImport = await prisma.statementImport.create({
+    data: {
+      bankAccountId,
+      importedById: user.id,
+      fileName: (file as File).name,
+      fileHash: fileHashStr,
+      rowCount: parsed.rows.length,
+      status: 'PROCESSING',
+      openingBalanceCents: parsed.openingBalanceCents,
+      closingBalanceCents: parsed.closingBalanceCents,
+    },
+  })
+
+  // Step 3: Partition into new vs duplicate
+  const newItems = items.filter((i) => !existingSet.has(i.duplicateHash))
+  const dupItems = items.filter((i) => existingSet.has(i.duplicateHash))
+
+  // Step 4: Batch-create new transactions
+  // createMany doesn't return IDs, but we don't need them since StatementImportRow.transactionId
+  // is optional. Audit links can be resolved later via duplicateHash.
+  let createdCount = 0
+  if (newItems.length > 0) {
+    const result = await prisma.transaction.createMany({
+      data: newItems.map(({ row, duplicateHash, direction }) => ({
+        bankAccountId,
+        importId: statementImport.id,
+        transactionDate: row.transactionDate,
+        rawDescription: row.rawDescription,
+        cleanDescription: cleanDescription(row.rawDescription),
+        amountCents: row.amountCents,
+        balanceAfterCents: row.balanceAfterCents,
+        duplicateHash,
+        csvRowNumber: row.csvRowNumber,
+        direction,
+      })),
+      skipDuplicates: true,
+    })
+    createdCount = result.count
+  }
+
+  // Step 5: Batch-create import rows (no transactionId — keeps it cheap)
+  if (items.length > 0) {
+    await prisma.statementImportRow.createMany({
+      data: items.map(({ row, duplicateHash }) => ({
+        importId: statementImport.id,
+        rowNumber: row.csvRowNumber,
+        rawJson: row as object,
+        duplicateHash,
+        action: existingSet.has(duplicateHash) ? 'DUPLICATE_SKIPPED' as const : 'IMPORTED' as const,
+      })),
+    })
+  }
+
+  // Step 6: Finalise import status
+  await prisma.statementImport.update({
+    where: { id: statementImport.id },
+    data: {
+      importedCount: createdCount,
+      duplicateCount: dupItems.length,
+      errorCount: newItems.length - createdCount, // any that createMany skipped
+      status: 'COMPLETE',
+    },
+  })
+
+  return c.json({
+    ok: true,
+    importId: statementImport.id,
+    fileName: (file as File).name,
+    rowCount: parsed.rows.length,
+    importedCount: createdCount,
+    duplicateCount: dupItems.length,
+    errorCount: newItems.length - createdCount,
+    openingBalanceCents: parsed.openingBalanceCents,
+    closingBalanceCents: parsed.closingBalanceCents,
+  })
 }
