@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
+import type { TransactionType } from '@prisma/client'
 import { prisma, seedRules } from '@bms/db'
 import { createHash } from 'crypto'
 import { parseStandardBankCsv } from '../lib/csv-parser'
@@ -89,6 +90,113 @@ export async function backfillBusinessIds(c: Context<AppEnv>) {
   }
 
   return c.json({ ok: true, updated, scanned: transactions.length })
+}
+
+/**
+ * POST /admin/reapply-rules — re-applies all active rules to historical transactions.
+ *
+ * Updates category, supplier, business, isPersonal, transactionType, ruleId
+ * on transactions that were previously rule-attributed (ruleId != null) OR
+ * have not yet been manually reviewed (reviewStatus = NEEDS_REVIEW).
+ * Skips REVIEWED / UNCLEAR / LOCKED transactions to preserve manual decisions.
+ *
+ * Restricted to TENANT_OWNER. Idempotent — safe to re-run.
+ */
+export async function reapplyRules(c: Context<AppEnv>) {
+  const user = c.get('user')
+
+  const bankAccountIds = (
+    await prisma.bankAccount.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })
+  ).map((b) => b.id)
+
+  const rules = await prisma.transactionRule.findMany({
+    where: { tenantId: user.tenantId, active: true },
+    select: {
+      id: true,
+      descriptionPattern: true,
+      categoryId: true,
+      supplierId: true,
+      businessId: true,
+      transactionType: true,
+      isPersonal: true,
+      priority: true,
+    },
+    orderBy: { priority: 'desc' },
+  })
+
+  if (rules.length === 0) {
+    return c.json({ ok: true, updated: 0, message: 'No active rules' })
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      bankAccountId: { in: bankAccountIds },
+      OR: [
+        { ruleId: { not: null } },
+        { reviewStatus: 'NEEDS_REVIEW' },
+      ],
+    },
+    select: { id: true, cleanDescription: true },
+  })
+
+  const updates: Array<{
+    id: string
+    categoryId: string | null
+    supplierId: string | null
+    businessId: string | null
+    transactionType: TransactionType
+    isPersonal: boolean
+    ruleId: string
+  }> = []
+
+  for (const tx of transactions) {
+    const desc = (tx.cleanDescription ?? '').toUpperCase()
+    for (const rule of rules) {
+      if (desc.includes(rule.descriptionPattern.toUpperCase())) {
+        updates.push({
+          id: tx.id,
+          categoryId: rule.categoryId,
+          supplierId: rule.supplierId,
+          businessId: rule.businessId,
+          transactionType: (rule.transactionType ?? 'UNKNOWN') as TransactionType,
+          isPersonal: rule.isPersonal ?? false,
+          ruleId: rule.id,
+        })
+        break
+      }
+    }
+  }
+
+  if (updates.length === 0) {
+    return c.json({ ok: true, updated: 0, scanned: transactions.length })
+  }
+
+  let updated = 0
+  const BATCH = 40
+  for (let i = 0; i < updates.length; i += BATCH) {
+    const batch = updates.slice(i, i + BATCH)
+    await Promise.allSettled(
+      batch.map((u) =>
+        prisma.transaction.update({
+          where: { id: u.id },
+          data: {
+            categoryId: u.categoryId,
+            supplierId: u.supplierId,
+            businessId: u.businessId,
+            transactionType: u.transactionType,
+            isPersonal: u.isPersonal,
+            ruleId: u.ruleId,
+          },
+        })
+      )
+    )
+    updated += batch.length
+  }
+
+  return c.json({ ok: true, updated, scanned: transactions.length, rulesEvaluated: rules.length })
 }
 
 /**
