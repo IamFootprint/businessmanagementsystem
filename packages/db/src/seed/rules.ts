@@ -35,7 +35,7 @@ const SUPPLIERS: SupplierDef[] = [
   { name: 'VHH Group',
     website: 'https://www.fastway.co.za',
     aliases: ['VHH GROUP', 'NETCASH071VHH', 'CF WEEKLY PAYME'],
-    notes: 'VHH Group — Fastway Rustenburg Regional Franchisor. Kgolaentle Holdings operates "Fastway Sun City" as a sub-franchise under VHH Group. All revenue from VHH Group is the Fastway Sun City franchise income (weekly payouts via EFT and Netcash). Fastway national network is owned by City Logistics + Clearwater Capital since Aug 2022; VHH is the regional franchisor layer.' },
+    notes: 'VHH Group — CURRENT Fastway Rustenburg Regional Franchisor. Kgolaentle Holdings operates "Fastway Sun City" as a sub-franchise under VHH Group. VHH stepped in after the previous regional franchisor, Nakooda, had its contract terminated; before that handover, sub-franchise payouts arrived under the "FASTWAY RBG" merchant label. Today: weekly payouts via EFT (VHH GROUP) and Netcash (NETCASH071VHH). Fastway national network is owned by City Logistics + Clearwater Capital since Aug 2022; VHH is the regional franchisor layer.' },
   { name: 'Transnatal Glass Factory',
     website: 'https://transnatal.co.za',
     aliases: ['TRANS NATAL', 'TRANS-NATAL', 'C*TRANS NATAL', 'C*TRANS-NATAL'],
@@ -227,8 +227,10 @@ const RULES: RuleDef[] = [
   { name: 'EFTPOS card settlement (Debit Card)', descriptionPattern: 'DR EFTPOS 2KC',
     category: 'Courier Revenue', business: 'fastway',
     transactionType: 'REVENUE', trustedAutoReview: true, priority: P.REVENUE },
-  // Legacy 2023 Fastway revenue — before VHH Group rebrand
-  { name: 'Fastway RBG (legacy 2023 franchise income)', descriptionPattern: 'FASTWAY RBG',
+  // Legacy Fastway revenue — from the Nakooda era (previous regional franchisor,
+  // contract terminated). Payments arrived under the "FASTWAY RBG" merchant label
+  // before VHH Group took over the Rustenburg region. Still routed to Fastway Sun City.
+  { name: 'Fastway RBG (Nakooda-era franchise income)', descriptionPattern: 'FASTWAY RBG',
     category: 'Courier Revenue', supplier: 'VHH Group', business: 'fastway',
     transactionType: 'REVENUE', trustedAutoReview: true, priority: P.REVENUE },
 
@@ -521,6 +523,7 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
     'Trans-Natal Express (sub-contracted courier)',
     'Transnatal Glass Factory (homeware wholesale)',
     'Personal: Bling Girl', // renamed → "Bling Girl — Opulent Beauty stock"
+    'Fastway RBG (legacy 2023 franchise income)', // renamed → "Fastway RBG (Nakooda-era franchise income)"
   ]
   await prisma.transactionRule.deleteMany({
     where: { tenantId: tenant.id, name: { in: ORPHAN_RULE_NAMES } },
