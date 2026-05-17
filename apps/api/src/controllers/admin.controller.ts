@@ -105,6 +105,10 @@ export async function backfillBusinessIds(c: Context<AppEnv>) {
 export async function reapplyRules(c: Context<AppEnv>) {
   const user = c.get('user')
 
+  // Pagination so we stay within Worker CPU budget. Default 250 txns/call.
+  const limit = Math.max(1, Math.min(1000, Number(c.req.query('limit') ?? 250)))
+  const cursor = c.req.query('cursor') ?? undefined
+
   const bankAccountIds = (
     await prisma.bankAccount.findMany({
       where: { tenantId: user.tenantId },
@@ -131,15 +135,19 @@ export async function reapplyRules(c: Context<AppEnv>) {
     return c.json({ ok: true, updated: 0, message: 'No active rules' })
   }
 
+  // Include everything except LOCKED + manually REVIEWED (reviewedById set).
+  // System auto-reviewed transactions have reviewedById = null and should be
+  // re-evaluated when the rule taxonomy changes.
   const transactions = await prisma.transaction.findMany({
     where: {
       bankAccountId: { in: bankAccountIds },
-      OR: [
-        { ruleId: { not: null } },
-        { reviewStatus: 'NEEDS_REVIEW' },
-      ],
+      reviewStatus: { not: 'LOCKED' },
+      reviewedById: null,
+      ...(cursor ? { id: { gt: cursor } } : {}),
     },
     select: { id: true, cleanDescription: true },
+    orderBy: { id: 'asc' },
+    take: limit,
   })
 
   const updates: Array<{
@@ -196,7 +204,16 @@ export async function reapplyRules(c: Context<AppEnv>) {
     updated += batch.length
   }
 
-  return c.json({ ok: true, updated, scanned: transactions.length, rulesEvaluated: rules.length })
+  const nextCursor = transactions.length > 0 ? transactions[transactions.length - 1].id : null
+  const done = transactions.length < limit
+  return c.json({
+    ok: true,
+    updated,
+    scanned: transactions.length,
+    rulesEvaluated: rules.length,
+    nextCursor: done ? null : nextCursor,
+    done,
+  })
 }
 
 /**
