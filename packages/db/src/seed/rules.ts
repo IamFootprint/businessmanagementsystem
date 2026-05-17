@@ -799,6 +799,7 @@ export async function seedRules(prisma: PrismaClient): Promise<SeedRulesResult> 
     'Capitec — customer EFT (Fastway)',
     'Bidvest Insurance — Vehicle Premium',
     'Vox Telecom — VoIP',
+    'Fuel: Obaro Rustenburg',
   ]
   await prisma.transactionRule.deleteMany({
     where: { tenantId: tenant.id, name: { in: ORPHAN_RULE_NAMES } },
