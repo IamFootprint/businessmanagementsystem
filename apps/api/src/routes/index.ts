@@ -40,4 +40,5 @@ export function registerRoutes(app: Hono<AppEnv>) {
     })
     return c.json({ data })
   })
+
 }
