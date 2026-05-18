@@ -252,7 +252,7 @@ export async function reapplyRules(c: Context<AppEnv>) {
 export async function upsertUserAdmin(c: Context<AppEnv>) {
   const actor = c.get('user')
 
-  type Body = { email?: string; name?: string; role?: string; password?: string; active?: boolean }
+  type Body = { email?: string; name?: string; role?: string; password?: string; active?: boolean; defaultBusinessId?: string | null }
   const body = await c.req.json<Body>().catch(() => ({} as Body))
 
   const email = body.email?.trim().toLowerCase()
@@ -260,11 +260,18 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
   const role = (body.role ?? 'ACCOUNTANT').toUpperCase() as UserRole
   const password = body.password
   const active = body.active ?? true
+  const defaultBusinessId = body.defaultBusinessId === null ? null : body.defaultBusinessId?.trim() ?? undefined
 
   if (!email) return c.json({ error: 'email is required' }, 400)
   if (!email.endsWith(ALLOWED_EMAIL_DOMAIN)) return c.json({ error: `email must end in ${ALLOWED_EMAIL_DOMAIN}` }, 400)
   if (!name) return c.json({ error: 'name is required' }, 400)
   if (!VALID_ROLES.includes(role)) return c.json({ error: `role must be one of ${VALID_ROLES.join(', ')}` }, 400)
+
+  // Validate the business belongs to this tenant.
+  if (typeof defaultBusinessId === 'string' && defaultBusinessId) {
+    const biz = await prisma.business.findUnique({ where: { id: defaultBusinessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== actor.tenantId) return c.json({ error: 'defaultBusinessId not found' }, 404)
+  }
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, tenantId: true } })
 
@@ -286,7 +293,7 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
   // authenticated indefinitely after a credential reset.
   const shouldRevokeSessions = existing && (passwordHash || active === false)
 
-  let upserted: { id: string; email: string; name: string; role: UserRole; active: boolean; createdAt: Date }
+  let upserted: { id: string; email: string; name: string; role: UserRole; active: boolean; createdAt: Date; defaultBusinessId: string | null }
   if (existing) {
     const [updated] = await prisma.$transaction([
       prisma.user.update({
@@ -296,8 +303,9 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
           role,
           active,
           ...(passwordHash ? { passwordHash } : {}),
+          ...(defaultBusinessId !== undefined ? { defaultBusinessId } : {}),
         },
-        select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+        select: { id: true, email: true, name: true, role: true, active: true, createdAt: true, defaultBusinessId: true },
       }),
       ...(shouldRevokeSessions
         ? [prisma.session.deleteMany({ where: { userId: existing.id } })]
@@ -313,8 +321,9 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
         role,
         active,
         passwordHash: passwordHash!,
+        defaultBusinessId: typeof defaultBusinessId === 'string' ? defaultBusinessId : null,
       },
-      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true, defaultBusinessId: true },
     })
   }
 
@@ -545,6 +554,25 @@ export async function applySupplierMigration(c: Context<AppEnv>) {
     {
       label: 'Session.lastSeenAt',
       sql: `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;`,
+    },
+    // Migration: 20260518161814_add_driver_role_and_default_business
+    // Add DRIVER to UserRole enum. ALTER TYPE ... ADD VALUE is idempotent
+    // via IF NOT EXISTS (Postgres 9.6+, Neon supports this).
+    {
+      label: 'UserRole.DRIVER enum value',
+      sql: `ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'DRIVER';`,
+    },
+    {
+      label: 'User.defaultBusinessId',
+      sql: `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "defaultBusinessId" TEXT;`,
+    },
+    {
+      label: 'User.defaultBusinessId FK',
+      sql: `DO $$ BEGIN
+        ALTER TABLE "User" ADD CONSTRAINT "User_defaultBusinessId_fkey"
+          FOREIGN KEY ("defaultBusinessId") REFERENCES "Business"("id")
+          ON DELETE SET NULL ON UPDATE CASCADE;
+      EXCEPTION WHEN duplicate_object THEN null; END $$;`,
     },
     // NOTE: this endpoint deliberately does NOT touch _prisma_migrations.
     // After running these DDLs, the operator should run from a host with the

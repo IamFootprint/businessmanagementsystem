@@ -3,11 +3,15 @@ import type { AppEnv } from '../types'
 import { prisma, ReceiptMatchStatus } from '@bms/db'
 import { put } from '@vercel/blob'
 import { rankCandidates } from '../lib/receipt-match'
+import { extractReceipt, OpenAIAuthError, OpenAIRateLimitError } from '../lib/openai-vision'
+import { findBestSupplierMatch, type SupplierCandidate } from '../lib/supplier-match'
+import { applyRulesToTransactions } from '../lib/rules-engine'
 
 const STALE_DAYS = 90
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'])
+const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 export async function uploadReceiptPublic(c: Context<AppEnv>) {
   let formData: FormData
@@ -249,4 +253,214 @@ export async function markStaleReceipts(c: Context<AppEnv>) {
   } catch {
     return c.json({ error: 'Internal server error' }, 500)
   }
+}
+
+
+/**
+ * POST /receipts/capture — OCR a receipt photo and return pre-fill data.
+ *
+ * Multipart form: { file: image, latLng?: "<lat>,<lng>" }.
+ * Behaviour:
+ *   1. Validates the file (image, ≤10 MB).
+ *   2. Uploads to Vercel Blob.
+ *   3. Calls OpenAI GPT-4o-mini vision to extract structured fields.
+ *   4. Fuzzy-matches the extracted merchant against existing suppliers.
+ *   5. Runs the rules engine on a synthetic transaction (just the cleanDescription)
+ *      to suggest business + category.
+ *   6. Creates a Receipt(uploadedById = current user, matchStatus = UNMATCHED,
+ *      hint* fields populated from OCR).
+ *   7. Returns { receipt, ocr, supplierMatch, suggestedBusinessId, suggestedCategoryId }
+ *      so the client can render the review form pre-filled.
+ *
+ * Roles: TENANT_OWNER, FINANCE_MANAGER, ACCOUNTANT, DRIVER.
+ */
+export async function captureReceipt(c: Context<AppEnv>) {
+  const user = c.get('user')
+
+  let formData: FormData
+  try {
+    formData = await c.req.formData()
+  } catch {
+    return c.json({ error: 'Expected multipart/form-data' }, 400)
+  }
+
+  const file = formData.get('file')
+  if (!file || typeof file === 'string') return c.json({ error: 'file is required' }, 400)
+  const f = file as File
+  if (f.size > MAX_FILE_BYTES) return c.json({ error: 'File exceeds 10 MB limit' }, 413)
+  const mimeType = f.type || 'application/octet-stream'
+  if (!ALLOWED_IMAGE_MIMES.has(mimeType)) {
+    return c.json({ error: 'Receipt capture requires an image (JPEG, PNG, WEBP, or GIF)' }, 415)
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return c.json({ error: 'OCR not configured (OPENAI_API_KEY missing)' }, 500)
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+  if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
+
+  // 1. Read bytes once — needed by both the upload AND the OCR call.
+  let imageBytes: ArrayBuffer
+  try {
+    imageBytes = await f.arrayBuffer()
+  } catch {
+    return c.json({ error: 'Could not read uploaded file' }, 400)
+  }
+
+  // 2. Upload to Vercel Blob (in parallel with OCR for speed)
+  const safeFileName = f.name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'receipt'
+  const blobUpload = put(`receipts/${Date.now()}-${safeFileName}`, imageBytes, {
+    access: 'public',
+    token: blobToken,
+    contentType: mimeType,
+  })
+
+  // 3. Run OCR in parallel
+  let ocrResult: Awaited<ReturnType<typeof extractReceipt>>
+  let storagePath: string
+  try {
+    const [blob, ocr] = await Promise.all([
+      blobUpload,
+      extractReceipt(imageBytes, mimeType, apiKey),
+    ])
+    storagePath = blob.url
+    ocrResult = ocr
+  } catch (err) {
+    if (err instanceof OpenAIAuthError) return c.json({ error: 'OCR service authentication failed' }, 500)
+    if (err instanceof OpenAIRateLimitError) return c.json({ error: 'OCR service rate limited — try again shortly' }, 503)
+    return c.json({ error: `Capture failed: ${err instanceof Error ? err.message : 'unknown'}` }, 500)
+  }
+
+  // 4. Fuzzy-match merchant against existing suppliers
+  let supplierMatch: { id: string; name: string; score: number } | null = null
+  if (ocrResult.merchant) {
+    const tenantSuppliers = await prisma.supplier.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true, name: true, aliases: { select: { pattern: true } } },
+    })
+    const candidates: SupplierCandidate[] = tenantSuppliers.map((s) => ({
+      id: s.id,
+      name: s.name,
+      aliases: s.aliases.map((a) => a.pattern),
+    }))
+    const match = findBestSupplierMatch(ocrResult.merchant, candidates)
+    if (match) {
+      supplierMatch = { id: match.supplier.id, name: match.supplier.name, score: match.score }
+    }
+  }
+
+  // 5. Suggest business + category by running active rules against the OCR'd merchant.
+  let suggestedBusinessId: string | null = null
+  let suggestedCategoryId: string | null = null
+  let suggestedSupplierId: string | null = supplierMatch?.id ?? null
+  let suggestedTransactionType: string | null = null
+  let suggestedIsPersonal: boolean | null = null
+  if (ocrResult.merchant) {
+    const cleanDesc = ocrResult.merchant.toUpperCase()
+    const rules = await prisma.transactionRule.findMany({
+      where: { tenantId: user.tenantId, active: true },
+      select: {
+        id: true, descriptionPattern: true, categoryId: true, supplierId: true,
+        businessId: true, transactionType: true, isPersonal: true,
+        trustedAutoReview: true, priority: true, active: true,
+      },
+    })
+    const [ruleMatch] = applyRulesToTransactions(
+      [{
+        id: 'synthetic-' + Date.now(),
+        cleanDescription: cleanDesc,
+        reviewStatus: 'NEEDS_REVIEW',
+        categoryId: null,
+        supplierId: null,
+        businessId: null,
+        transactionType: 'UNKNOWN',
+        isPersonal: false,
+      }],
+      rules,
+    )
+    if (ruleMatch) {
+      suggestedBusinessId = ruleMatch.businessId
+      suggestedCategoryId = ruleMatch.categoryId
+      suggestedSupplierId = suggestedSupplierId ?? ruleMatch.supplierId
+      suggestedTransactionType = ruleMatch.transactionType
+      suggestedIsPersonal = ruleMatch.isPersonal
+    }
+  }
+
+  // 6. If no business suggested by rules, fall back to driver's defaultBusinessId.
+  if (!suggestedBusinessId) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { defaultBusinessId: true },
+    })
+    if (dbUser?.defaultBusinessId) suggestedBusinessId = dbUser.defaultBusinessId
+  }
+
+  // 7. Persist the Receipt with the OCR hints.
+  const totalCents = ocrResult.totalAmount != null ? Math.round(ocrResult.totalAmount * 100) : null
+  const txnDate = (() => {
+    if (!ocrResult.transactionDate) return null
+    const d = new Date(ocrResult.transactionDate)
+    return isNaN(d.getTime()) ? null : d
+  })()
+
+  const receipt = await prisma.receipt.create({
+    data: {
+      uploadedById: user.id,
+      uploaderPhone: user.email, // we use email as the per-user identifier here
+      hintAmountCents: totalCents,
+      hintDate: txnDate,
+      hintSupplier: ocrResult.merchant,
+      hintBusinessId: suggestedBusinessId,
+      storagePath,
+      fileName: safeFileName,
+      fileMimeType: mimeType,
+      fileSizeBytes: f.size,
+      matchStatus: ReceiptMatchStatus.UNMATCHED,
+    },
+    select: {
+      id: true, storagePath: true, hintAmountCents: true, hintDate: true,
+      hintSupplier: true, hintBusinessId: true, matchStatus: true, capturedAt: true,
+    },
+  })
+
+  return c.json({
+    ok: true,
+    receipt,
+    ocr: ocrResult,
+    suggestion: {
+      supplierId: suggestedSupplierId,
+      supplierMatch,
+      businessId: suggestedBusinessId,
+      categoryId: suggestedCategoryId,
+      transactionType: suggestedTransactionType,
+      isPersonal: suggestedIsPersonal,
+    },
+  }, 201)
+}
+
+/**
+ * GET /receipts/mine — list the current user's own captured receipts.
+ *
+ * Drivers see only their own; managers/owners see all via the regular
+ * /receipts endpoint.
+ */
+export async function listMyReceipts(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const receipts = await prisma.receipt.findMany({
+    where: { uploadedById: user.id },
+    orderBy: { capturedAt: 'desc' },
+    take: 100,
+    select: {
+      id: true,
+      hintSupplier: true,
+      hintAmountCents: true,
+      hintDate: true,
+      hintBusinessId: true,
+      matchStatus: true,
+      capturedAt: true,
+      storagePath: true,
+      transactionId: true,
+    },
+  })
+  return c.json({ data: receipts })
 }

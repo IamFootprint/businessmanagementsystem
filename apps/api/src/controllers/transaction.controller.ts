@@ -355,11 +355,26 @@ export async function createManualTransaction(c: Context<AppEnv>) {
   })
   const csvRowNumber = (lastRow?.csvRowNumber ?? 0) + 1
 
-  // Receipt file (optional)
+  // Receipt: either an existing Receipt id (from /receipts/capture) OR a new file upload.
+  const existingReceiptIdRaw = formData.get('receiptId')
+  const existingReceiptId = typeof existingReceiptIdRaw === 'string' && existingReceiptIdRaw ? existingReceiptIdRaw : null
   const file = formData.get('file')
   let receiptStoragePath: string | null = null
   let receiptFile: File | null = null
-  if (file && typeof file !== 'string') {
+
+  // If an existing receiptId is provided, validate ownership (uploader or tenant business).
+  if (existingReceiptId) {
+    const found = await prisma.receipt.findUnique({
+      where: { id: existingReceiptId },
+      select: { id: true, uploadedById: true, hintBusinessId: true },
+    })
+    if (!found) return c.json({ error: 'receiptId not found' }, 404)
+    if (found.uploadedById !== user.id) {
+      // Owner / Finance Manager can confirm any tenant receipt; others can only confirm their own.
+      const isPrivileged = user.role === 'TENANT_OWNER' || user.role === 'FINANCE_MANAGER'
+      if (!isPrivileged) return c.json({ error: 'receiptId belongs to a different user' }, 403)
+    }
+  } else if (file && typeof file !== 'string') {
     receiptFile = file as File
     if (receiptFile.size > MAX_RECEIPT_BYTES) return c.json({ error: 'Receipt exceeds 10 MB limit' }, 413)
     const mime = receiptFile.type || 'application/octet-stream'
@@ -440,9 +455,21 @@ export async function createManualTransaction(c: Context<AppEnv>) {
     }
   }
 
-  // Save the receipt linked to this transaction (if uploaded)
+  // Save / link the receipt to this transaction.
   let receiptId: string | null = null
-  if (receiptStoragePath && receiptFile) {
+  if (existingReceiptId) {
+    // Confirm the captured receipt by linking it to the just-created transaction.
+    await prisma.receipt.update({
+      where: { id: existingReceiptId },
+      data: {
+        transactionId: txn.id,
+        matchStatus: 'MATCHED',
+        matchedById: user.id,
+        matchedAt: new Date(),
+      },
+    })
+    receiptId = existingReceiptId
+  } else if (receiptStoragePath && receiptFile) {
     const created = await prisma.receipt.create({
       data: {
         transactionId: txn.id,

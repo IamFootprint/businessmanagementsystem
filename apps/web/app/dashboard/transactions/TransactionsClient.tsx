@@ -2,7 +2,7 @@
 import { useState, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/lib/use-toast'
-import { Receipt as ReceiptIcon, Filter, Zap, Download, Search, Plus } from 'lucide-react'
+import { Receipt as ReceiptIcon, Filter, Zap, Download, Search, Plus, Camera } from 'lucide-react'
 import { TabsWithCount } from '@/components/ui/tabs-with-count'
 import { BulkActionBar } from '@/components/ui/bulk-action-bar'
 import { ThreeStateCheckbox } from '@/components/ui/three-state-checkbox'
@@ -12,6 +12,7 @@ import { updateTransactionAction, bulkUpdateTransactionsAction } from './actions
 import { applyRulesAction } from '../rules/actions'
 import { TxDrawer } from './TxDrawer'
 import { CashExpenseModal } from './CashExpenseModal'
+import { CaptureReceiptModal } from './CaptureReceiptModal'
 
 type Business = { id: string; name: string; slug: string }
 type Supplier = { id: string; name: string }
@@ -56,6 +57,7 @@ export function TransactionsClient({ transactions, meta, categories, businesses,
   const [drawerTxId, setDrawerTxId] = useState<string | null>(null)
   const [searchValue, setSearchValue] = useState(searchQuery ?? '')
   const [cashModalOpen, setCashModalOpen] = useState(false)
+  const [captureModalOpen, setCaptureModalOpen] = useState(false)
 
   // C1: re-sync when server re-fetches (tab switch or router refresh)
   useEffect(() => {
@@ -144,8 +146,15 @@ export function TransactionsClient({ transactions, meta, categories, businesses,
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setCashModalOpen(true)}
+            onClick={() => setCaptureModalOpen(true)}
             className="inline-flex items-center gap-1.5 h-8 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 text-[13px] font-semibold text-white hover:opacity-90 transition-opacity"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Capture receipt
+          </button>
+          <button
+            onClick={() => setCashModalOpen(true)}
+            className="inline-flex items-center gap-1.5 h-8 rounded-md border border-[var(--color-border)] px-3 text-[13px] text-[var(--color-ink-2)] hover:bg-[var(--color-panel-2)] transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             Add cash expense
@@ -373,6 +382,19 @@ export function TransactionsClient({ transactions, meta, categories, businesses,
         onClose={() => setCashModalOpen(false)}
         onCreated={() => {
           toast('Cash expense recorded')
+          startTransition(() => router.refresh())
+        }}
+        categories={categories}
+        businesses={businesses}
+        suppliers={suppliers}
+      />
+
+      {/* Receipt-capture modal (OCR → review → save) */}
+      <CaptureReceiptModal
+        open={captureModalOpen}
+        onClose={() => setCaptureModalOpen(false)}
+        onCreated={() => {
+          toast('Receipt captured and saved')
           startTransition(() => router.refresh())
         }}
         categories={categories}

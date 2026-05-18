@@ -1,57 +1,41 @@
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
-import { TrendingUp, TrendingDown, ArrowRight, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { TrendingUp, TrendingDown, AlertCircle, ArrowRight, Building2 } from 'lucide-react'
 import Link from 'next/link'
 
-type Period = { id: string; year: number; month: number; status: string; lockedAt: string | null }
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-// API contract — matches what /transactions actually returns
-type ApiTransaction = {
+type BusinessBreakdown = {
   id: string
-  transactionDate: string
-  rawDescription: string
-  cleanDescription?: string
-  amountCents: number
-  direction: 'CREDIT' | 'DEBIT'
-  category?: { id: string; name: string } | null
+  slug: string
+  name: string
+  revenueCents: number
+  expenseCents: number
+  netCents: number
+  count: number
 }
 
-// Local view-model
-type Transaction = {
-  id: string
-  description: string
-  amountCents: number
-  type: 'INCOME' | 'EXPENSE'
-  date: string
-  categoryName?: string
-}
-
-function toView(t: ApiTransaction): Transaction {
-  return {
-    id: t.id,
-    description: t.cleanDescription || t.rawDescription || '',
-    amountCents: Math.abs(t.amountCents),
-    type: t.direction === 'CREDIT' ? 'INCOME' : 'EXPENSE',
-    date: t.transactionDate,
-    categoryName: t.category?.name,
-  }
-}
-type Snapshot = {
+type Kpis = {
   totalRevenueCents: number
   totalExpenseCents: number
-  netProfitCents: number
+  netCents: number
+  transactionCount: number
+  categorisedPct: number
+  personalCount: number
 }
 
+type AnalyticsResponse = {
+  kpis: Kpis
+  perBusiness: BusinessBreakdown[]
+  businesses: { id: string; slug: string; name: string }[]
+  unassignedCount: number
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 function fmt(cents: number): string {
   return `R ${(Math.abs(cents) / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return '—'
-  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`
 }
 
 function greeting(): string {
@@ -61,44 +45,47 @@ function greeting(): string {
   return 'Good evening'
 }
 
+function mtdRange(): { from: string; to: string; month: number; year: number } {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const from = `${year}-${String(month).padStart(2, '0')}-01`
+  const to = `${year}-${String(month).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return { from, to, month, year }
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default async function HomePage() {
-  const [periodsResult, txResult, pendingResult] = await Promise.allSettled([
-    apiRequestAuthenticated<{ periods: Period[] }>('/periods'),
-    apiRequestAuthenticated<{ data: ApiTransaction[]; meta: { total: number } }>('/transactions?pageSize=6'),
+  // Drivers don't see the financial home — bounce them straight to the capture portal.
+  try {
+    const me = await apiRequestAuthenticated<{ user: { role: string } }>('/auth/me')
+    if (me.user.role === 'DRIVER') {
+      const { redirect } = await import('next/navigation')
+      redirect('/driver')
+    }
+  } catch {
+    // ignore — middleware handles unauthenticated
+  }
+
+  const { from, to, month, year } = mtdRange()
+
+  const [analyticsResult, pendingResult] = await Promise.allSettled([
+    apiRequestAuthenticated<AnalyticsResponse>(`/analytics/overview?from=${from}&to=${to}`),
     apiRequestAuthenticated<{ meta: { total: number } }>('/transactions?reviewStatus=NEEDS_REVIEW&pageSize=1'),
   ])
 
-  const periods = periodsResult.status === 'fulfilled' ? (periodsResult.value.periods ?? []) : []
-  const transactions: Transaction[] = txResult.status === 'fulfilled' ? (txResult.value.data ?? []).map(toView) : []
-  const txTotal = txResult.status === 'fulfilled' ? (txResult.value.meta?.total ?? 0) : 0
+  const analytics = analyticsResult.status === 'fulfilled' ? analyticsResult.value : null
+  const kpis = analytics?.kpis ?? null
+  const perBusiness: BusinessBreakdown[] = analytics?.perBusiness ?? []
   const pendingCount = pendingResult.status === 'fulfilled' ? (pendingResult.value.meta?.total ?? 0) : 0
-
-  const openPeriod = periods.find(p => p.status === 'OPEN')
-  const lockedPeriods = periods
-    .filter(p => p.status === 'LOCKED')
-    .sort((a, b) => (b.year !== a.year ? b.year - a.year : b.month - a.month))
-  const latestLocked = lockedPeriods[0]
-
-  let snapshot: Snapshot | null = null
-  let snapshotPeriod: Period | null = null
-  if (latestLocked) {
-    try {
-      const r = await apiRequestAuthenticated<{ snapshot: Snapshot }>(`/periods/${latestLocked.id}/report`)
-      snapshot = r.snapshot
-      snapshotPeriod = latestLocked
-    } catch { /* no snapshot */ }
-  }
-
-  const displayPeriod = openPeriod ?? latestLocked
-  const netPositive = snapshot ? snapshot.netProfitCents >= 0 : null
+  const netPositive = kpis ? kpis.netCents >= 0 : null
 
   return (
-    <div className="flex flex-col" style={{ paddingBottom: 8 }}>
-      {/* Header */}
-      <div
-        className="px-5 pt-5 pb-4"
-        style={{ borderBottom: '1px solid var(--color-border)' }}
-      >
+    <div className="flex flex-col" style={{ paddingBottom: 24 }}>
+
+      {/* ── Header ── */}
+      <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <p className="text-[13px] animate-fade-in" style={{ color: 'var(--color-ink-3)' }}>
           {greeting()}
         </p>
@@ -108,30 +95,19 @@ export default async function HomePage() {
         >
           Kgolaentle Holdings
         </h1>
-        {displayPeriod && (
-          <div className="mt-2 flex items-center gap-2 animate-fade-in delay-2">
-            <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[.06em]"
-              style={
-                openPeriod
-                  ? { background: 'rgba(251,146,60,0.12)', color: 'var(--color-warn)' }
-                  : { background: 'var(--pos-bg)', color: 'var(--color-pos)' }
-              }
-            >
-              {openPeriod ? <Clock size={10} strokeWidth={2} /> : <CheckCircle2 size={10} strokeWidth={2} />}
-              {openPeriod ? 'Open' : 'Locked'}
-            </span>
-            <span className="text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
-              {MONTHS[displayPeriod.month - 1]} {displayPeriod.year}
-            </span>
-          </div>
-        )}
+        <p className="mt-1 text-[12px] font-medium uppercase tracking-[.07em] animate-fade-in delay-2"
+          style={{ color: 'var(--color-accent)' }}
+        >
+          {MONTHS[month - 1]} {year} · Month to date
+        </p>
       </div>
 
       <div className="flex flex-col gap-4 px-4 pt-4">
-        {/* Hero P&L card (only when snapshot available) */}
-        {snapshot && snapshotPeriod ? (
-          <div className="card-accent animate-scale-in delay-1 overflow-hidden rounded-xl p-5"
+
+        {/* ── MTD P&L Hero ── */}
+        {kpis ? (
+          <div
+            className="card-accent animate-scale-in delay-1 overflow-hidden rounded-xl p-5"
             style={{
               background: `radial-gradient(ellipse at top left, rgba(212,160,23,0.08) 0%, var(--color-surface) 60%)`,
             }}
@@ -140,8 +116,9 @@ export default async function HomePage() {
               className="mb-1 text-[11px] font-semibold uppercase tracking-[.1em]"
               style={{ color: 'var(--color-accent)' }}
             >
-              Net {snapshot.netProfitCents >= 0 ? 'Profit' : 'Loss'} · {MONTHS_SHORT[snapshotPeriod.month - 1]} {snapshotPeriod.year}
+              Net {kpis.netCents >= 0 ? 'Profit' : 'Loss'} · MTD
             </p>
+
             <p
               className="text-[44px] leading-none tracking-[-0.03em]"
               style={{
@@ -149,11 +126,9 @@ export default async function HomePage() {
                 color: netPositive ? 'var(--color-pos)' : 'var(--color-neg)',
               }}
             >
-              {!netPositive && '−'}
-              {fmt(snapshot.netProfitCents)}
+              {!netPositive && '−'}{fmt(kpis.netCents)}
             </p>
 
-            {/* Revenue / Expenses row */}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div
                 className="rounded-lg px-3 py-2.5"
@@ -166,7 +141,7 @@ export default async function HomePage() {
                   </span>
                 </div>
                 <p className="text-[16px] font-semibold tabular-nums" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-                  {fmt(snapshot.totalRevenueCents)}
+                  {fmt(kpis.totalRevenueCents)}
                 </p>
               </div>
               <div
@@ -180,54 +155,36 @@ export default async function HomePage() {
                   </span>
                 </div>
                 <p className="text-[16px] font-semibold tabular-nums" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-                  {fmt(snapshot.totalExpenseCents)}
+                  {fmt(kpis.totalExpenseCents)}
                 </p>
               </div>
             </div>
 
-            <Link
-              href={`/reports/${snapshotPeriod.id}`}
-              className="mt-3 flex items-center gap-1 text-[12px] font-medium transition-opacity"
-              style={{ color: 'var(--color-accent)' }}
-            >
-              Full report <ArrowRight size={12} />
-            </Link>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-[12px]" style={{ color: 'var(--color-ink-3)' }}>
+                {kpis.transactionCount} transactions · {kpis.categorisedPct}% categorised
+              </p>
+              <Link
+                href="/insights"
+                className="flex items-center gap-1 text-[12px] font-medium"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                Full insights <ArrowRight size={12} />
+              </Link>
+            </div>
           </div>
         ) : (
-          <div
-            className="card animate-scale-in delay-1 rounded-xl p-5"
-            style={{
-              background: `radial-gradient(ellipse at top left, rgba(212,160,23,0.05) 0%, var(--color-surface) 60%)`,
-            }}
-          >
+          <div className="card animate-scale-in delay-1 rounded-xl p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[.1em]" style={{ color: 'var(--color-accent)' }}>
-              Current Period
+              {MONTHS[month - 1]} {year} · Month to date
             </p>
-            {openPeriod ? (
-              <>
-                <p className="mt-1 text-[28px] tracking-[-0.02em]" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}>
-                  {MONTHS[openPeriod.month - 1]} {openPeriod.year}
-                </p>
-                <p className="mt-1 text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
-                  Period in progress · {txTotal} transactions
-                </p>
-                <Link
-                  href="/reports"
-                  className="mt-3 flex items-center gap-1 text-[12px] font-medium"
-                  style={{ color: 'var(--color-accent)' }}
-                >
-                  Lock period to generate report <ArrowRight size={12} />
-                </Link>
-              </>
-            ) : (
-              <p className="mt-2 text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
-                No active period
-              </p>
-            )}
+            <p className="mt-2 text-[13px]" style={{ color: 'var(--color-ink-3)' }}>
+              No data available for this period.
+            </p>
           </div>
         )}
 
-        {/* Pending actions */}
+        {/* ── Pending review alert ── */}
         {pendingCount > 0 && (
           <Link
             href="/transactions"
@@ -238,26 +195,24 @@ export default async function HomePage() {
               <AlertCircle size={18} style={{ color: 'var(--color-warn)' }} />
               <div>
                 <p className="text-[13px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                  {pendingCount} transaction{pendingCount !== 1 ? 's' : ''} need review
+                  {pendingCount.toLocaleString()} transaction{pendingCount !== 1 ? 's' : ''} need review
                 </p>
-                <p className="text-[12px]" style={{ color: 'var(--color-ink-3)' }}>
-                  Tap to review
-                </p>
+                <p className="text-[12px]" style={{ color: 'var(--color-ink-3)' }}>Tap to categorise</p>
               </div>
             </div>
             <ArrowRight size={16} style={{ color: 'var(--color-ink-3)' }} />
           </Link>
         )}
 
-        {/* Recent transactions */}
-        {transactions.length > 0 && (
+        {/* ── Per-business breakdown ── */}
+        {perBusiness.length > 0 && (
           <div className="animate-fade-up delay-3">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[12px] font-semibold uppercase tracking-[.08em]" style={{ color: 'var(--color-ink-3)' }}>
-                Recent
+                Businesses
               </p>
               <Link
-                href="/transactions"
+                href="/insights"
                 className="flex items-center gap-1 text-[12px] font-medium"
                 style={{ color: 'var(--color-accent)' }}
               >
@@ -265,44 +220,65 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div
-              className="card overflow-hidden rounded-xl"
-              style={{ borderColor: 'var(--color-border)' }}
-            >
-              {transactions.map((tx, i) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between px-4 py-3.5"
-                  style={{
-                    borderTop: i > 0 ? '1px solid var(--color-border)' : 'none',
-                  }}
-                >
-                  <div className="flex min-w-0 flex-col">
-                    <p
-                      className="truncate text-[13px] font-medium"
-                      style={{ color: 'var(--color-ink)' }}
-                    >
-                      {tx.description || tx.categoryName || 'Transaction'}
-                    </p>
-                    <p className="text-[11px]" style={{ color: 'var(--color-ink-3)' }}>
-                      {formatDate(tx.date)}
-                      {tx.categoryName && ` · ${tx.categoryName}`}
-                    </p>
-                  </div>
-                  <p
-                    className="ml-4 shrink-0 text-[14px] font-semibold tabular-nums"
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      color: tx.type === 'INCOME' ? 'var(--color-pos)' : 'var(--color-neg)',
-                    }}
+            <div className="flex flex-col gap-2.5">
+              {perBusiness.map((biz) => {
+                const isProfit = biz.netCents >= 0
+                return (
+                  <Link
+                    key={biz.id}
+                    href={`/insights?businessId=${biz.id}`}
+                    className="card overflow-hidden rounded-xl"
+                    style={{ borderColor: 'var(--color-border)' }}
                   >
-                    {tx.type === 'INCOME' ? '+' : '−'}{fmt(tx.amountCents)}
-                  </p>
-                </div>
-              ))}
+                    <div className="px-4 py-3.5">
+                      {/* Business name row */}
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Building2 size={13} style={{ color: 'var(--color-ink-3)', flexShrink: 0 }} />
+                          <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--color-ink)' }}>
+                            {biz.name}
+                          </p>
+                        </div>
+                        <ArrowRight size={13} style={{ color: 'var(--color-ink-3)', flexShrink: 0 }} />
+                      </div>
+
+                      {/* Net P&L */}
+                      <p
+                        className="text-[26px] leading-none tracking-[-0.02em] mb-2.5"
+                        style={{
+                          fontFamily: 'var(--font-display)',
+                          color: isProfit ? 'var(--color-pos)' : 'var(--color-neg)',
+                        }}
+                      >
+                        {!isProfit && '−'}{fmt(biz.netCents)}
+                      </p>
+
+                      {/* Revenue / Expenses sub-row */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <TrendingUp size={11} style={{ color: 'var(--color-pos)' }} />
+                          <span className="text-[12px] tabular-nums" style={{ color: 'var(--color-ink-3)', fontFamily: 'var(--font-display)' }}>
+                            {fmt(biz.revenueCents)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <TrendingDown size={11} style={{ color: 'var(--color-neg)' }} />
+                          <span className="text-[12px] tabular-nums" style={{ color: 'var(--color-ink-3)', fontFamily: 'var(--font-display)' }}>
+                            {fmt(biz.expenseCents)}
+                          </span>
+                        </div>
+                        <span className="ml-auto text-[11px]" style={{ color: 'var(--color-ink-3)' }}>
+                          {biz.count} txns
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           </div>
         )}
+
       </div>
     </div>
   )

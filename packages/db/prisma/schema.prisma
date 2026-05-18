@@ -41,6 +41,7 @@ model Business {
   monthlyPeriods     MonthlyPeriod[]
   supplierBusinesses SupplierBusiness[]
   rules              TransactionRule[]
+  defaultForUsers    User[]             @relation("UserDefaultBusiness")
 
   @@unique([tenantId, slug])
 }
@@ -52,22 +53,25 @@ enum UserRole {
   FINANCE_MANAGER
   ACCOUNTANT
   AUDITOR
+  DRIVER
 }
 
 model User {
-  id           String    @id @default(cuid())
-  tenantId     String
-  email        String    @unique // global unique: single-tenant MVP; change to @@unique([tenantId,email]) if multi-tenant SaaS is introduced
-  passwordHash String
-  name         String
-  role         UserRole
-  active       Boolean   @default(true)
-  phone        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  lastLoginAt  DateTime?
+  id                String    @id @default(cuid())
+  tenantId          String
+  email             String    @unique // global unique: single-tenant MVP; change to @@unique([tenantId,email]) if multi-tenant SaaS is introduced
+  passwordHash      String
+  name              String
+  role              UserRole
+  active            Boolean   @default(true)
+  phone             String?
+  defaultBusinessId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
 
   tenant                 Tenant                  @relation(fields: [tenantId], references: [id])
+  defaultBusiness        Business?               @relation("UserDefaultBusiness", fields: [defaultBusinessId], references: [id])
   sessions               Session[]
   statementImports       StatementImport[]
   transactionAuditEvents TransactionAuditEvent[]

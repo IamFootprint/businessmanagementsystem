@@ -55,3 +55,45 @@ export async function createManualTransactionAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to create transaction' }
   }
 }
+
+export type ReceiptCaptureActionResult = {
+  ok: boolean
+  error?: string
+  receipt?: {
+    id: string
+    storagePath: string
+    hintAmountCents: number | null
+    hintDate: string | null
+    hintSupplier: string | null
+    hintBusinessId: string | null
+    matchStatus: string
+  }
+  ocr?: {
+    merchant: string | null
+    transactionDate: string | null
+    totalAmount: number | null
+    vatAmount: number | null
+    currency: string | null
+    rawText: string
+    confidence: 'high' | 'medium' | 'low'
+  }
+  suggestion?: {
+    supplierId: string | null
+    supplierMatch: { id: string; name: string; score: number } | null
+    businessId: string | null
+    categoryId: string | null
+    transactionType: string | null
+    isPersonal: boolean | null
+  }
+}
+
+export async function captureReceiptAction(formData: FormData): Promise<ReceiptCaptureActionResult> {
+  try {
+    return await apiRequestAuthenticated<ReceiptCaptureActionResult>('/receipts/capture', {
+      method: 'POST',
+      body: formData,
+    })
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Capture failed' }
+  }
+}
