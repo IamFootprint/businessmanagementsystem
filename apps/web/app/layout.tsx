@@ -1,10 +1,23 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { DM_Serif_Display, Outfit, Geist_Mono } from 'next/font/google'
 import { ToastProvider } from '@/components/ui/toast'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
+const dmSerifDisplay = DM_Serif_Display({
+  weight: ['400'],
+  style: ['normal', 'italic'],
+  subsets: ['latin'],
+  variable: '--font-dm-serif',
+  display: 'swap',
+})
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  variable: '--font-outfit',
+  display: 'swap',
+})
+
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
@@ -15,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${dmSerifDisplay.variable} ${outfit.variable} ${geistMono.variable}`}>
       <body><ToastProvider>{children}</ToastProvider></body>
     </html>
   )

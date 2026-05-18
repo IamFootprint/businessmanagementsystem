@@ -1,14 +1,14 @@
 @import "tailwindcss";
 @source "../**/*.{js,ts,jsx,tsx}";
 
-/* ─── Typography ─────────────────────────────────────────────── */
-@font-face { font-family: "GeistFallback"; src: local("Arial"); }
-
 /* ─── Theme tokens ───────────────────────────────────────────── */
 @theme {
-  /* Font families */
-  --font-sans: var(--font-geist-sans), "GeistFallback", system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), "Courier New", monospace;
+  /* Font families — mirrored from mobile so the platform reads as one app.
+     DM Serif Display for headings (.font-display / fontFamily: var(--font-display)),
+     Outfit for body. */
+  --font-display: var(--font-dm-serif), "Georgia", serif;
+  --font-sans:    var(--font-outfit), "Helvetica Neue", system-ui, sans-serif;
+  --font-mono:    var(--font-geist-mono), "Courier New", monospace;
 
   /* PRIMARY ACCENT */
   --color-accent:         #A16207;
@@ -133,7 +133,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
+
+/* ─── Typography utilities (matches mobile) ───────────────────── */
+.font-display { font-family: var(--font-display); }
+.font-sans    { font-family: var(--font-sans); }
 
 /* ─── Keyframe animations (top-level, outside any layer) ────────── */
 @keyframes status-pulse {
