@@ -270,15 +270,33 @@ model Category {
 
 // ─── SUPPLIERS ────────────────────────────────────────────────────────────────
 
+enum SupplierReviewStatus {
+  NEEDS_REVIEW
+  CONFIRMED
+  REJECTED
+}
+
+enum SupplierLookupSource {
+  MANUAL
+  RULE_SEED
+  IMPORT_AUTO
+  BRAVE
+  CIPC
+}
+
 model Supplier {
-  id        String   @id @default(cuid())
-  tenantId  String
-  name      String
-  website   String?
-  notes     String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                       String                @id @default(cuid())
+  tenantId                 String
+  name                     String
+  website                  String?
+  notes                    String?
+  active                   Boolean               @default(true)
+  reviewStatus             SupplierReviewStatus  @default(CONFIRMED)
+  lookupSource             SupplierLookupSource  @default(MANUAL)
+  lookupRawJson            Json?
+  extractedFromDescription String?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
 
   tenant       Tenant             @relation(fields: [tenantId], references: [id])
   businesses   SupplierBusiness[]
@@ -287,6 +305,7 @@ model Supplier {
   rules        TransactionRule[]
 
   @@unique([tenantId, name])
+  @@index([tenantId, reviewStatus])
 }
 
 model SupplierBusiness {

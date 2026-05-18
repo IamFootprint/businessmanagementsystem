@@ -17,6 +17,9 @@ type Supplier = {
   website: string | null
   notes: string | null
   aliases: Alias[]
+  reviewStatus?: 'NEEDS_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  lookupSource?: 'MANUAL' | 'RULE_SEED' | 'IMPORT_AUTO' | 'BRAVE' | 'CIPC'
+  extractedFromDescription?: string | null
 }
 
 type RecentTx = {
@@ -89,12 +92,23 @@ function SupplierCard({ supplier, onClick }: { supplier: Supplier; onClick: () =
           </div>
           {/* Name + website */}
           <div className="min-w-0">
-            <p
-              className="text-[14px] font-semibold truncate"
-              style={{ color: 'var(--color-ink)' }}
-            >
-              {supplier.name}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p
+                className="text-[14px] font-semibold truncate"
+                style={{ color: 'var(--color-ink)' }}
+              >
+                {supplier.name}
+              </p>
+              {supplier.reviewStatus === 'NEEDS_REVIEW' && (
+                <span
+                  className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[.05em]"
+                  style={{ backgroundColor: 'var(--color-warn-bg)', color: 'var(--color-warn)' }}
+                  title={`Auto-created from import${supplier.lookupSource === 'BRAVE' ? ' (Brave search applied)' : ''}`}
+                >
+                  Needs review
+                </span>
+              )}
+            </div>
             {isSafeUrl(supplier.website) && (
               <a
                 href={supplier.website}

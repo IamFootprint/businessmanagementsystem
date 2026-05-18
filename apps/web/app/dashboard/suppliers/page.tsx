@@ -8,6 +8,9 @@ type Supplier = {
   website: string | null
   notes: string | null
   aliases: Alias[]
+  reviewStatus?: 'NEEDS_REVIEW' | 'CONFIRMED' | 'REJECTED'
+  lookupSource?: 'MANUAL' | 'RULE_SEED' | 'IMPORT_AUTO' | 'BRAVE' | 'CIPC'
+  extractedFromDescription?: string | null
 }
 
 async function getSuppliers(): Promise<{ ok: true; data: Supplier[] } | { ok: false }> {

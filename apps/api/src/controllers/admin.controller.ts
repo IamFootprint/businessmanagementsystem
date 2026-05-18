@@ -5,6 +5,9 @@ import { prisma, seedRules } from '@bms/db'
 import { createHash } from 'crypto'
 import { parseStandardBankCsv } from '../lib/csv-parser'
 import { makeTransactionHash, cleanDescription } from '../lib/import-hash'
+import { extractMerchantName } from '../lib/supplier-extract'
+import { findBestSupplierMatch, type SupplierCandidate } from '../lib/supplier-match'
+import { braveSearch, pickWebsite, type BraveLookup } from '../lib/brave-search'
 
 export const PETTY_CASH_NICKNAME = 'Petty Cash'
 export const MANUAL_ENTRIES_FILENAME = '__manual_cash_entries__'
@@ -277,6 +280,165 @@ export async function seedPettyCashAdmin(c: Context<AppEnv>) {
     manualImportId: manualImport.id,
     createdAccount: !existingPetty,
     createdImport: !existingImport,
+  })
+}
+
+/**
+ * POST /admin/process-unknown-suppliers — link transactions to suppliers.
+ *
+ * For every transaction with no supplierId (paginated by `?limit=N&cursor=ID`):
+ *   1. Extract a merchant name from the raw description (heuristic NER).
+ *   2. Fuzzy-match against existing suppliers + aliases.
+ *   3. On match → link the transaction to the existing supplier (CONFIRMED).
+ *   4. On miss → call Brave Search (if BRAVE_SEARCH_API_KEY is configured),
+ *      create a new supplier with reviewStatus=NEEDS_REVIEW and
+ *      lookupSource=IMPORT_AUTO, save the search results, and link the txn.
+ *      If the search call fails, still create the supplier (lookupRawJson=null)
+ *      so a human reviewer can take it from there.
+ *
+ * Idempotent — re-running only touches transactions still missing a supplier.
+ * Suppliers created in earlier passes get re-used by name within the same call
+ * via a local cache.
+ *
+ * Restricted to TENANT_OWNER.
+ */
+export async function processUnknownSuppliers(c: Context<AppEnv>) {
+  const user = c.get('user')
+  const limit = Math.max(1, Math.min(500, Number(c.req.query('limit') ?? 50)))
+  const cursor = c.req.query('cursor') ?? undefined
+  const skipSearch = c.req.query('skipSearch') === 'true'
+
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY
+  const canSearch = !skipSearch && Boolean(apiKey)
+
+  // Load existing suppliers + aliases for fuzzy matching
+  const dbSuppliers = await prisma.supplier.findMany({
+    where: { tenantId: user.tenantId },
+    select: {
+      id: true,
+      name: true,
+      aliases: { select: { pattern: true } },
+    },
+  })
+  const candidates: SupplierCandidate[] = dbSuppliers.map((s) => ({
+    id: s.id,
+    name: s.name,
+    aliases: s.aliases.map((a) => a.pattern),
+  }))
+
+  // Find transactions still missing a supplier
+  const bankAccountIds = (
+    await prisma.bankAccount.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })
+  ).map((b) => b.id)
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      bankAccountId: { in: bankAccountIds },
+      supplierId: null,
+      reviewStatus: { not: 'LOCKED' },
+      ...(cursor ? { id: { gt: cursor } } : {}),
+    },
+    select: { id: true, rawDescription: true, cleanDescription: true },
+    orderBy: { id: 'asc' },
+    take: limit,
+  })
+
+  let matched = 0
+  let created = 0
+  let skipped = 0
+  let searchFailures = 0
+
+  // In-call cache so multiple txns with the same merchant share one supplier
+  // (e.g. five MAKRO STREUBE charges in one statement → one supplier created).
+  const newSupplierByName = new Map<string, string>()
+
+  for (const tx of transactions) {
+    const { merchant } = extractMerchantName(tx.rawDescription)
+    if (!merchant) {
+      skipped++
+      continue
+    }
+
+    // 1. Try matching against existing suppliers
+    const match = findBestSupplierMatch(merchant, candidates)
+    if (match) {
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: { supplierId: match.supplier.id },
+      })
+      matched++
+      continue
+    }
+
+    // 2. Try matching against suppliers we just created in this call
+    const cachedId = newSupplierByName.get(merchant.toUpperCase())
+    if (cachedId) {
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: { supplierId: cachedId },
+      })
+      matched++
+      continue
+    }
+
+    // 3. Create a new supplier (with optional Brave lookup)
+    let lookup: BraveLookup | null = null
+    let website: string | null = null
+    if (canSearch) {
+      try {
+        lookup = await braveSearch(`${merchant} South Africa`, apiKey!, 3)
+        website = pickWebsite(lookup)
+      } catch {
+        searchFailures++
+        lookup = null
+      }
+    }
+
+    // Race-safe upsert by (tenantId, name) — collisions can happen if the same
+    // merchant appears in two parallel processings.
+    const supplier = await prisma.supplier.upsert({
+      where: { tenantId_name: { tenantId: user.tenantId, name: merchant } },
+      update: {},
+      create: {
+        tenantId: user.tenantId,
+        name: merchant,
+        website,
+        reviewStatus: 'NEEDS_REVIEW',
+        lookupSource: lookup ? 'BRAVE' : 'IMPORT_AUTO',
+        lookupRawJson: lookup ? (lookup as unknown as object) : undefined,
+        extractedFromDescription: tx.rawDescription,
+      },
+      select: { id: true },
+    })
+
+    await prisma.transaction.update({
+      where: { id: tx.id },
+      data: { supplierId: supplier.id },
+    })
+
+    newSupplierByName.set(merchant.toUpperCase(), supplier.id)
+    // Add to the in-memory candidate set so subsequent fuzzy matches in this
+    // call can hit it (with alias-only matching).
+    candidates.push({ id: supplier.id, name: merchant, aliases: [] })
+    created++
+  }
+
+  const nextCursor = transactions.length > 0 ? transactions[transactions.length - 1].id : null
+  const done = transactions.length < limit
+
+  return c.json({
+    ok: true,
+    scanned: transactions.length,
+    matched,
+    created,
+    skipped,
+    searchFailures,
+    searchEnabled: canSearch,
+    nextCursor: done ? null : nextCursor,
+    done,
   })
 }
 
