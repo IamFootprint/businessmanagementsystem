@@ -6,6 +6,9 @@ import { createHash } from 'crypto'
 import { parseStandardBankCsv } from '../lib/csv-parser'
 import { makeTransactionHash, cleanDescription } from '../lib/import-hash'
 
+export const PETTY_CASH_NICKNAME = 'Petty Cash'
+export const MANUAL_ENTRIES_FILENAME = '__manual_cash_entries__'
+
 /**
  * POST /admin/seed-rules — seeds transaction rules from supplier research.
  *
@@ -213,6 +216,67 @@ export async function reapplyRules(c: Context<AppEnv>) {
     rulesEvaluated: rules.length,
     nextCursor: done ? null : nextCursor,
     done,
+  })
+}
+
+/**
+ * POST /admin/seed-petty-cash — provisions the manual-entry plumbing.
+ *
+ * Idempotently creates:
+ *   1. A 'Petty Cash' BankAccount for the tenant (currency ZAR, type 'CASH').
+ *   2. A long-lived StatementImport ('__manual_cash_entries__') anchored to
+ *      that bank account, used as the importId on every manual Transaction
+ *      so we don't need to make the FK nullable.
+ *
+ * Returns the IDs so the client can cache them. Restricted to TENANT_OWNER.
+ */
+export async function seedPettyCashAdmin(c: Context<AppEnv>) {
+  const user = c.get('user')
+
+  const existingPetty = await prisma.bankAccount.findFirst({
+    where: { tenantId: user.tenantId, nickname: PETTY_CASH_NICKNAME },
+    select: { id: true },
+  })
+
+  const pettyCash =
+    existingPetty ??
+    (await prisma.bankAccount.create({
+      data: {
+        tenantId: user.tenantId,
+        nickname: PETTY_CASH_NICKNAME,
+        bankName: 'Petty Cash',
+        accountType: 'CASH',
+        currency: 'ZAR',
+        active: true,
+      },
+      select: { id: true },
+    }))
+
+  const existingImport = await prisma.statementImport.findFirst({
+    where: { bankAccountId: pettyCash.id, fileName: MANUAL_ENTRIES_FILENAME },
+    select: { id: true },
+  })
+
+  const manualImport =
+    existingImport ??
+    (await prisma.statementImport.create({
+      data: {
+        bankAccountId: pettyCash.id,
+        importedById: user.id,
+        fileName: MANUAL_ENTRIES_FILENAME,
+        fileHash: 'manual-entries',
+        rowCount: 0,
+        status: 'COMPLETE',
+      },
+      select: { id: true },
+    }))
+
+  return c.json({
+    ok: true,
+    pettyCashAccountId: pettyCash.id,
+    manualImportId: manualImport.id,
+    createdAccount: !existingPetty,
+    createdImport: !existingImport,
   })
 }
 

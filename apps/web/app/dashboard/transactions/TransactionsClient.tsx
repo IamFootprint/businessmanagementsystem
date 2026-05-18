@@ -2,14 +2,19 @@
 import { useState, useEffect, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/lib/use-toast'
-import { Receipt as ReceiptIcon } from 'lucide-react'
+import { Receipt as ReceiptIcon, Filter, Zap, Download, Search, Plus } from 'lucide-react'
 import { TabsWithCount } from '@/components/ui/tabs-with-count'
 import { BulkActionBar } from '@/components/ui/bulk-action-bar'
 import { ThreeStateCheckbox } from '@/components/ui/three-state-checkbox'
 import { InlineCategoryPicker, type Category } from '@/components/ui/inline-category-picker'
 import { cn } from '@/lib/utils'
 import { updateTransactionAction, bulkUpdateTransactionsAction } from './actions'
+import { applyRulesAction } from '../rules/actions'
 import { TxDrawer } from './TxDrawer'
+import { CashExpenseModal } from './CashExpenseModal'
+
+type Business = { id: string; name: string; slug: string }
+type Supplier = { id: string; name: string }
 
 type Transaction = {
   id: string
@@ -28,8 +33,11 @@ interface TransactionsClientProps {
   transactions: Transaction[]
   meta: { total: number; page: number; pageSize: number; pages: number }
   categories: Category[]
+  businesses: Business[]
+  suppliers: Supplier[]
   reviewStatus: string
   page: number
+  searchQuery?: string
 }
 
 const STATUS_TABS = [
@@ -39,21 +47,25 @@ const STATUS_TABS = [
   { id: 'LOCKED',       label: 'Locked' },
 ]
 
-export function TransactionsClient({ transactions, meta, categories, reviewStatus, page }: TransactionsClientProps) {
+export function TransactionsClient({ transactions, meta, categories, businesses, suppliers, reviewStatus, page, searchQuery }: TransactionsClientProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [, startTransition] = useTransition()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [localTx, setLocalTx] = useState(transactions)
   const [drawerTxId, setDrawerTxId] = useState<string | null>(null)
+  const [searchValue, setSearchValue] = useState(searchQuery ?? '')
+  const [cashModalOpen, setCashModalOpen] = useState(false)
 
   // C1: re-sync when server re-fetches (tab switch or router refresh)
   useEffect(() => {
     setLocalTx(transactions)
     setSelected(new Set())
-  }, [transactions])
+    setSearchValue(searchQuery ?? '')
+  }, [transactions, searchQuery])
 
   const drawerTx = localTx.find(t => t.id === drawerTxId) ?? null
+  const searchSuffix = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''
 
   // Selection logic
   const allSelected = localTx.length > 0 && selected.size === localTx.length
@@ -104,6 +116,16 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
     }
   }
 
+  const handleApplyRules = async () => {
+    const result = await applyRulesAction()
+    if (result.error) {
+      toast(result.error)
+    } else {
+      toast(`${result.applied ?? 0} transaction${(result.applied ?? 0) !== 1 ? 's' : ''} updated by rules`)
+      startTransition(() => router.refresh())
+    }
+  }
+
   const formatAmount = (cents: number) =>
     `R ${(Math.abs(cents) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`
 
@@ -120,6 +142,34 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
           <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-[var(--color-ink)]">Transactions</h1>
           <p className="mt-0.5 text-[13px] text-[var(--color-ink-3)]">{meta.total} transactions · Standard Bank Main</p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCashModalOpen(true)}
+            className="inline-flex items-center gap-1.5 h-8 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)] px-3 text-[13px] font-semibold text-white hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add cash expense
+          </button>
+          <button
+            className="inline-flex items-center gap-1.5 h-8 rounded-md border border-[var(--color-border)] px-3 text-[13px] text-[var(--color-ink-2)] hover:bg-[var(--color-panel-2)] transition-colors"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filter
+          </button>
+          <button
+            onClick={handleApplyRules}
+            className="inline-flex items-center gap-1.5 h-8 rounded-md border border-[var(--color-border)] px-3 text-[13px] text-[var(--color-ink-2)] hover:bg-[var(--color-panel-2)] transition-colors"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Apply rules
+          </button>
+          <button
+            className="inline-flex items-center gap-1.5 h-8 rounded-md border border-[var(--color-border)] px-3 text-[13px] text-[var(--color-ink-2)] hover:bg-[var(--color-panel-2)] transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export
+          </button>
+        </div>
       </div>
 
       {/* Main card */}
@@ -130,9 +180,24 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
             tabs={tabs}
             activeTab={reviewStatus}
             onTabChange={id => {
-              startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${id}`))
+              startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${id}${searchSuffix}`))
             }}
           />
+          <div className="relative shrink-0">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-ink-3)]" />
+            <input
+              type="search"
+              value={searchValue}
+              onChange={e => setSearchValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${reviewStatus}&search=${encodeURIComponent(searchValue)}`))
+                }
+              }}
+              placeholder="Search transactions…"
+              className="h-8 min-w-[240px] rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] pl-8 pr-3 text-[13px] outline-none placeholder:text-[var(--color-ink-3)] focus:border-[var(--color-accent)]"
+            />
+          </div>
         </div>
 
         {/* Table */}
@@ -165,8 +230,8 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
               ) : (
                 localTx.map(tx => {
                   const isSelected = selected.has(tx.id)
-                  const date = new Date(tx.transactionDate)
-                  const formatted = date.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  const [, mm, dd] = tx.transactionDate.split('T')[0].split('-')
+                  const formatted = `${mm}/${dd}`
                   const isExpense = tx.direction === 'DEBIT'
                   const lowConf = tx.confidence != null && tx.confidence < 0.8 && tx.confidence > 0
 
@@ -200,7 +265,7 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
                           aria-label={`Select ${tx.rawDescription}`}
                         />
                       </td>
-                      <td className="px-3 py-3 tabular-nums text-[var(--color-ink-2)] whitespace-nowrap">{formatted}</td>
+                      <td className="px-3 py-3 tabular font-mono text-[var(--color-ink-2)] whitespace-nowrap">{formatted}</td>
                       <td className="px-3 py-3 max-w-[280px]">
                         <p className="truncate font-medium text-[var(--color-ink)]">{tx.rawDescription}</p>
                         {lowConf && (
@@ -250,7 +315,7 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
             <div className="flex gap-2">
               {meta.page > 1 && (
                 <button
-                  onClick={() => startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${reviewStatus}&page=${meta.page - 1}`))}
+                  onClick={() => startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${reviewStatus}&page=${meta.page - 1}${searchSuffix}`))}
                   className="rounded-md border border-[var(--color-border)] px-3 py-1 text-[12.5px] hover:bg-[var(--color-panel-2)]"
                 >
                   ← Prev
@@ -258,7 +323,7 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
               )}
               {meta.page < meta.pages && (
                 <button
-                  onClick={() => startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${reviewStatus}&page=${meta.page + 1}`))}
+                  onClick={() => startTransition(() => router.push(`/dashboard/transactions?reviewStatus=${reviewStatus}&page=${meta.page + 1}${searchSuffix}`))}
                   className="rounded-md border border-[var(--color-border)] px-3 py-1 text-[12.5px] hover:bg-[var(--color-panel-2)]"
                 >
                   Next →
@@ -300,6 +365,19 @@ export function TransactionsClient({ transactions, meta, categories, reviewStatu
             }
           }))
         }}
+      />
+
+      {/* Cash-expense modal */}
+      <CashExpenseModal
+        open={cashModalOpen}
+        onClose={() => setCashModalOpen(false)}
+        onCreated={() => {
+          toast('Cash expense recorded')
+          startTransition(() => router.refresh())
+        }}
+        categories={categories}
+        businesses={businesses}
+        suppliers={suppliers}
       />
     </div>
   )

@@ -41,3 +41,17 @@ export async function bulkUpdateTransactionsAction(
     return { ok: false, updated: 0, error: err instanceof Error ? err.message : 'Bulk update failed' }
   }
 }
+
+export async function createManualTransactionAction(
+  formData: FormData
+): Promise<{ ok: boolean; transactionId?: string; error?: string }> {
+  try {
+    const result = await apiRequestAuthenticated<{ ok: true; transactionId: string }>(
+      '/transactions/manual',
+      { method: 'POST', body: formData },
+    )
+    return { ok: true, transactionId: result.transactionId }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to create transaction' }
+  }
+}

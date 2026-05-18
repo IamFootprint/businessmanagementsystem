@@ -12,6 +12,8 @@ import { registerNotifyRoutes } from './notify.routes'
 import { registerCategoryRoutes } from './category.routes'
 import { registerAdminRoutes } from './admin.routes'
 import { registerAnalyticsRoutes } from './analytics.routes'
+import { sessionMiddleware } from '../middleware/session.middleware'
+import { prisma } from '@bms/db'
 
 export function registerRoutes(app: Hono<AppEnv>) {
   app.get('/health', getHealth)
@@ -27,4 +29,15 @@ export function registerRoutes(app: Hono<AppEnv>) {
   registerCategoryRoutes(app)
   registerAdminRoutes(app)
   registerAnalyticsRoutes(app)
+
+  // Lightweight businesses listing for client forms.
+  app.get('/businesses', sessionMiddleware, async (c) => {
+    const user = c.get('user')
+    const data = await prisma.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: 'asc' },
+    })
+    return c.json({ data })
+  })
 }
