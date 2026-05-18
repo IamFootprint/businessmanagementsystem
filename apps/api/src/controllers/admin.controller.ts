@@ -284,6 +284,76 @@ export async function seedPettyCashAdmin(c: Context<AppEnv>) {
 }
 
 /**
+ * POST /admin/apply-supplier-migration — idempotently applies the
+ * 20260518122733_add_supplier_review_lookup migration to the connected
+ * database. Bridges the gap of not having a `prisma migrate deploy` step
+ * for our Cloudflare Worker + Neon setup.
+ *
+ * Safe to re-run: every operation is `IF NOT EXISTS`.
+ * Restricted to TENANT_OWNER. Remove this endpoint after the migration
+ * is applied in production.
+ */
+export async function applySupplierMigration(c: Context<AppEnv>) {
+  const statements: Array<{ sql: string; label: string }> = [
+    {
+      label: 'enum SupplierReviewStatus',
+      sql: `DO $$ BEGIN
+        CREATE TYPE "SupplierReviewStatus" AS ENUM ('NEEDS_REVIEW', 'CONFIRMED', 'REJECTED');
+      EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    },
+    {
+      label: 'enum SupplierLookupSource',
+      sql: `DO $$ BEGIN
+        CREATE TYPE "SupplierLookupSource" AS ENUM ('MANUAL', 'RULE_SEED', 'IMPORT_AUTO', 'BRAVE', 'CIPC');
+      EXCEPTION WHEN duplicate_object THEN null; END $$;`,
+    },
+    {
+      label: 'Supplier.reviewStatus',
+      sql: `ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "reviewStatus" "SupplierReviewStatus" NOT NULL DEFAULT 'CONFIRMED';`,
+    },
+    {
+      label: 'Supplier.lookupSource',
+      sql: `ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "lookupSource" "SupplierLookupSource" NOT NULL DEFAULT 'MANUAL';`,
+    },
+    {
+      label: 'Supplier.lookupRawJson',
+      sql: `ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "lookupRawJson" JSONB;`,
+    },
+    {
+      label: 'Supplier.extractedFromDescription',
+      sql: `ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "extractedFromDescription" TEXT;`,
+    },
+    {
+      label: 'index Supplier_tenantId_reviewStatus_idx',
+      sql: `CREATE INDEX IF NOT EXISTS "Supplier_tenantId_reviewStatus_idx" ON "Supplier"("tenantId", "reviewStatus");`,
+    },
+    {
+      label: 'register migration in _prisma_migrations',
+      sql: `INSERT INTO "_prisma_migrations" (id, checksum, migration_name, started_at, finished_at, applied_steps_count)
+        VALUES (
+          '20260518122733_add_supplier_review_lookup',
+          'applied-via-admin-endpoint',
+          '20260518122733_add_supplier_review_lookup',
+          NOW(), NOW(), 1
+        )
+        ON CONFLICT (id) DO NOTHING;`,
+    },
+  ]
+
+  const results: Array<{ label: string; ok: boolean; error?: string }> = []
+  for (const { sql, label } of statements) {
+    try {
+      await prisma.$executeRawUnsafe(sql)
+      results.push({ label, ok: true })
+    } catch (err) {
+      results.push({ label, ok: false, error: err instanceof Error ? err.message : 'unknown' })
+    }
+  }
+
+  return c.json({ ok: results.every((r) => r.ok), results })
+}
+
+/**
  * POST /admin/process-unknown-suppliers — link transactions to suppliers.
  *
  * For every transaction with no supplierId (paginated by `?limit=N&cursor=ID`):

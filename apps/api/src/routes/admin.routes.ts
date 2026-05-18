@@ -2,11 +2,12 @@ import type { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { sessionMiddleware } from '../middleware/session.middleware'
 import { requireRole } from '../middleware/role.middleware'
-import { seedRulesAdmin, clearTransactionDataAdmin, bulkImportCsvAdmin, backfillBusinessIds, reapplyRules, seedPettyCashAdmin, processUnknownSuppliers } from '../controllers/admin.controller'
+import { seedRulesAdmin, clearTransactionDataAdmin, bulkImportCsvAdmin, backfillBusinessIds, reapplyRules, seedPettyCashAdmin, processUnknownSuppliers, applySupplierMigration } from '../controllers/admin.controller'
 
 export function registerAdminRoutes(app: Hono<AppEnv>) {
   app.post('/admin/seed-rules', sessionMiddleware, requireRole('TENANT_OWNER'), seedRulesAdmin)
   app.post('/admin/seed-petty-cash', sessionMiddleware, requireRole('TENANT_OWNER'), seedPettyCashAdmin)
+  app.post('/admin/apply-supplier-migration', sessionMiddleware, requireRole('TENANT_OWNER'), applySupplierMigration)
   app.post('/admin/backfill-business-ids', sessionMiddleware, requireRole('TENANT_OWNER'), backfillBusinessIds)
   app.post('/admin/reapply-rules', sessionMiddleware, requireRole('TENANT_OWNER'), reapplyRules)
   app.post('/admin/process-unknown-suppliers', sessionMiddleware, requireRole('TENANT_OWNER'), processUnknownSuppliers)
