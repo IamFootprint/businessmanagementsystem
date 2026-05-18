@@ -77,13 +77,14 @@ model User {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  ipAddress String?
-  userAgent String?
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

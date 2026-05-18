@@ -12,5 +12,6 @@ export type SessionUser = {
 export type AppEnv = {
   Variables: {
     user: SessionUser
+    sessionId: string
   }
 }

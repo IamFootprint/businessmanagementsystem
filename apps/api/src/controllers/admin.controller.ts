@@ -410,6 +410,11 @@ export async function applySupplierMigration(c: Context<AppEnv>) {
         )
         ON CONFLICT (id) DO NOTHING;`,
     },
+    // Migration: 20260518135155_add_session_last_seen_at
+    {
+      label: 'Session.lastSeenAt',
+      sql: `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;`,
+    },
   ]
 
   const results: Array<{ label: string; ok: boolean; error?: string }> = []

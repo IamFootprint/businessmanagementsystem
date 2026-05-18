@@ -1,31 +1,67 @@
-import type { MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from 'hono'
 import type { AppEnv } from '../types'
 
 type BucketEntry = { count: number; resetAt: number }
-const store = new Map<string, BucketEntry>()
+type Buckets = Map<string, BucketEntry>
 
-const WINDOW_MS = 15 * 60 * 1000
-const MAX_ATTEMPTS = 5
+function makeRateLimit(
+  buckets: Buckets,
+  windowMs: number,
+  maxAttempts: number,
+  errorMessage: string,
+  keyFn: (c: Context<AppEnv>) => string,
+): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const key = keyFn(c)
+    const now = Date.now()
+    const entry = buckets.get(key)
 
-export const loginRateLimitMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const ip =
+    if (!entry || entry.resetAt < now) {
+      buckets.set(key, { count: 1, resetAt: now + windowMs })
+    } else {
+      entry.count++
+      if (entry.count > maxAttempts) {
+        const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
+        c.header('Retry-After', String(retryAfter))
+        return c.json({ error: errorMessage }, 429)
+      }
+    }
+    await next()
+  }
+}
+
+function ipKey(c: Context<AppEnv>): string {
+  return (
     c.req.header('CF-Connecting-IP') ??
     c.req.header('X-Forwarded-For')?.split(',')[0].trim() ??
     'unknown'
-
-  const now = Date.now()
-  const entry = store.get(ip)
-
-  if (!entry || entry.resetAt < now) {
-    store.set(ip, { count: 1, resetAt: now + WINDOW_MS })
-  } else {
-    entry.count++
-    if (entry.count > MAX_ATTEMPTS) {
-      const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
-      c.header('Retry-After', String(retryAfter))
-      return c.json({ error: 'Too many login attempts. Please try again later.' }, 429)
-    }
-  }
-
-  await next()
+  )
 }
+
+function userIdKey(c: Context<AppEnv>): string {
+  // session middleware must run before this for c.get('user') to exist.
+  try {
+    return c.get('user')?.id ?? ipKey(c)
+  } catch {
+    return ipKey(c)
+  }
+}
+
+const loginBuckets: Buckets = new Map()
+const passwordChangeBuckets: Buckets = new Map()
+
+export const loginRateLimitMiddleware = makeRateLimit(
+  loginBuckets,
+  15 * 60 * 1000,
+  5,
+  'Too many login attempts. Please try again later.',
+  ipKey,
+)
+
+export const passwordChangeRateLimit = makeRateLimit(
+  passwordChangeBuckets,
+  15 * 60 * 1000,
+  5,
+  'Too many password change attempts. Please try again later.',
+  userIdKey,
+)

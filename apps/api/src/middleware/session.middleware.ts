@@ -31,5 +31,16 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     active: session.user.active,
   }
   c.set('user', sessionUser)
+  c.set('sessionId', session.id)
+
+  // Best-effort lastSeenAt bump — throttle to once per minute to avoid a
+  // write per request.
+  if (Date.now() - session.lastSeenAt.getTime() > 60_000) {
+    prisma.session.update({
+      where: { id: session.id },
+      data: { lastSeenAt: new Date() },
+    }).catch(() => undefined)
+  }
+
   await next()
 }

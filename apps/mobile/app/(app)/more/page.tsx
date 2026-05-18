@@ -1,10 +1,11 @@
 import Link from 'next/link'
-import { ChevronRight, Zap, Building2, Tag, ArrowUpFromLine, BarChart3, LogOut } from 'lucide-react'
+import { ChevronRight, Zap, Building2, Tag, ArrowUpFromLine, BarChart3, LogOut, UserCircle2 } from 'lucide-react'
 import { apiRequestAuthenticated } from '@/lib/api-client.server'
 
 type User = { name: string; email: string; role: string }
 
 const MORE_ITEMS = [
+  { href: '/account',    label: 'Account',       desc: 'Profile, password, sessions',      Icon: UserCircle2 },
   { href: '/rules',      label: 'Rules',         desc: 'Auto-categorisation patterns',     Icon: Zap },
   { href: '/suppliers',  label: 'Suppliers',     desc: 'Vendors and business profiles',    Icon: Building2 },
   { href: '/categories', label: 'Categories',    desc: 'Expense / revenue groupings',      Icon: Tag },

@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Zap,
   Tag,
+  UserCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/categories',   label: 'Categories',   icon: Tag },
   { href: '/dashboard/receipts',     label: 'Receipts',     icon: Receipt,         countKey: 'receipts' as const },
   { href: '/dashboard/reports',      label: 'Reports',      icon: BarChart3 },
+  { href: '/dashboard/account',      label: 'Account',      icon: UserCircle2 },
 ]
 
 const isActive = (href: string, activePath: string) =>
