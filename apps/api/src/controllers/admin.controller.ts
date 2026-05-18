@@ -8,6 +8,11 @@ import { makeTransactionHash, cleanDescription } from '../lib/import-hash'
 import { extractMerchantName } from '../lib/supplier-extract'
 import { findBestSupplierMatch, type SupplierCandidate } from '../lib/supplier-match'
 import { braveSearch, pickWebsite, type BraveLookup } from '../lib/brave-search'
+import { hashPassword } from '../lib/password'
+import type { UserRole } from '@prisma/client'
+
+const ALLOWED_EMAIL_DOMAIN = '@kgolaentle.com'
+const VALID_ROLES: UserRole[] = ['TENANT_OWNER', 'FINANCE_MANAGER', 'ACCOUNTANT', 'AUDITOR']
 
 export const PETTY_CASH_NICKNAME = 'Petty Cash'
 export const MANUAL_ENTRIES_FILENAME = '__manual_cash_entries__'
@@ -223,6 +228,73 @@ export async function reapplyRules(c: Context<AppEnv>) {
 }
 
 /**
+ * POST /admin/upsert-user — idempotent user provisioning for the current tenant.
+ *
+ * Body: { email, name, role?, password? }
+ *   - email: must end in @kgolaentle.com (same domain rule as login)
+ *   - name:  required, non-empty
+ *   - role:  one of TENANT_OWNER | FINANCE_MANAGER | ACCOUNTANT | AUDITOR
+ *           (default: ACCOUNTANT)
+ *   - password: required when creating; optional on update (omit to leave unchanged)
+ *
+ * On create → returns the new user (sans hash). On update → updates name/role/
+ * password if provided and returns the updated record.
+ *
+ * Restricted to TENANT_OWNER.
+ */
+export async function upsertUserAdmin(c: Context<AppEnv>) {
+  const actor = c.get('user')
+
+  type Body = { email?: string; name?: string; role?: string; password?: string; active?: boolean }
+  const body = await c.req.json<Body>().catch(() => ({} as Body))
+
+  const email = body.email?.trim().toLowerCase()
+  const name = body.name?.trim()
+  const role = (body.role ?? 'ACCOUNTANT').toUpperCase() as UserRole
+  const password = body.password
+  const active = body.active ?? true
+
+  if (!email) return c.json({ error: 'email is required' }, 400)
+  if (!email.endsWith(ALLOWED_EMAIL_DOMAIN)) return c.json({ error: `email must end in ${ALLOWED_EMAIL_DOMAIN}` }, 400)
+  if (!name) return c.json({ error: 'name is required' }, 400)
+  if (!VALID_ROLES.includes(role)) return c.json({ error: `role must be one of ${VALID_ROLES.join(', ')}` }, 400)
+
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, tenantId: true } })
+
+  if (existing && existing.tenantId !== actor.tenantId) {
+    return c.json({ error: 'User exists in a different tenant' }, 409)
+  }
+
+  const passwordHash = password ? await hashPassword(password) : undefined
+  if (!existing && !passwordHash) return c.json({ error: 'password is required when creating a new user' }, 400)
+
+  const upserted = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          role,
+          active,
+          ...(passwordHash ? { passwordHash } : {}),
+        },
+        select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+      })
+    : await prisma.user.create({
+        data: {
+          tenantId: actor.tenantId,
+          email,
+          name,
+          role,
+          active,
+          passwordHash: passwordHash!,
+        },
+        select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+      })
+
+  return c.json({ ok: true, user: upserted, created: !existing }, existing ? 200 : 201)
+}
+
+/**
  * POST /admin/seed-petty-cash — provisions the manual-entry plumbing.
  *
  * Idempotently creates:
@@ -351,6 +423,42 @@ export async function applySupplierMigration(c: Context<AppEnv>) {
   }
 
   return c.json({ ok: results.every((r) => r.ok), results })
+}
+
+/**
+ * POST /admin/reset-auto-suppliers — purge auto-created suppliers
+ * (lookupSource=IMPORT_AUTO or BRAVE) and unlink the transactions that
+ * point at them. Used to re-run the supplier extractor after improving
+ * the algorithm. Restricted to TENANT_OWNER.
+ */
+export async function resetAutoSuppliers(c: Context<AppEnv>) {
+  const user = c.get('user')
+
+  const autoSuppliers = await prisma.supplier.findMany({
+    where: {
+      tenantId: user.tenantId,
+      lookupSource: { in: ['IMPORT_AUTO', 'BRAVE'] },
+    },
+    select: { id: true },
+  })
+  const ids = autoSuppliers.map((s) => s.id)
+  if (ids.length === 0) return c.json({ ok: true, suppliersDeleted: 0, transactionsUnlinked: 0 })
+
+  const unlinkResult = await prisma.transaction.updateMany({
+    where: { supplierId: { in: ids } },
+    data: { supplierId: null },
+  })
+
+  // Suppliers may have aliases; SupplierAlias has ON DELETE CASCADE? Check
+  // defensively: detach aliases first to avoid FK issues.
+  await prisma.supplierAlias.deleteMany({ where: { supplierId: { in: ids } } })
+  const deleteResult = await prisma.supplier.deleteMany({ where: { id: { in: ids } } })
+
+  return c.json({
+    ok: true,
+    suppliersDeleted: deleteResult.count,
+    transactionsUnlinked: unlinkResult.count,
+  })
 }
 
 /**
