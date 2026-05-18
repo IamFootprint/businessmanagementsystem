@@ -22,6 +22,18 @@ export type BraveLookup = {
   fetchedAt: string
 }
 
+// Typed errors so callers can distinguish "the key is broken — stop trying"
+// from "this one request hit a rate limit / network blip".
+export class BraveAuthError extends Error {
+  readonly kind = 'BraveAuthError' as const
+}
+export class BraveRateLimitError extends Error {
+  readonly kind = 'BraveRateLimitError' as const
+  constructor(public readonly retryAfterSec: number | null) {
+    super('Brave rate limit')
+  }
+}
+
 export async function braveSearch(query: string, apiKey: string, limit = 3): Promise<BraveLookup> {
   const url = `${ENDPOINT}?q=${encodeURIComponent(query)}&count=${limit}&safesearch=moderate&country=ZA`
   const res = await fetch(url, {
@@ -32,6 +44,13 @@ export async function braveSearch(query: string, apiKey: string, limit = 3): Pro
     },
   })
 
+  if (res.status === 401 || res.status === 403) {
+    throw new BraveAuthError(`Brave Search returned ${res.status} — check BRAVE_SEARCH_API_KEY`)
+  }
+  if (res.status === 429) {
+    const ra = res.headers.get('Retry-After')
+    throw new BraveRateLimitError(ra ? Number(ra) : null)
+  }
   if (!res.ok) {
     throw new Error(`Brave Search returned ${res.status}: ${await res.text().catch(() => res.statusText)}`)
   }

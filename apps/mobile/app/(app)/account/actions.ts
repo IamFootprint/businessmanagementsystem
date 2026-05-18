@@ -35,7 +35,15 @@ export async function signOutAllAction(): Promise<{ ok: boolean; revoked?: numbe
   }
 }
 
+// Server Action callable directly from the browser — validate the shape of
+// `sessionId` before interpolating into the API path so a crafted client call
+// can't traverse to a different route.
+const SESSION_ID_PATTERN = /^[a-zA-Z0-9]{20,32}$/
+
 export async function revokeSessionAction(sessionId: string): Promise<{ ok: boolean; error?: string }> {
+  if (typeof sessionId !== 'string' || !SESSION_ID_PATTERN.test(sessionId)) {
+    return { ok: false, error: 'Invalid session id' }
+  }
   try {
     await apiRequestAuthenticated(`/auth/sessions/${sessionId}`, { method: 'DELETE' })
     return { ok: true }

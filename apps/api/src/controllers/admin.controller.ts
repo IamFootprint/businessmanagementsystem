@@ -7,8 +7,15 @@ import { parseStandardBankCsv } from '../lib/csv-parser'
 import { makeTransactionHash, cleanDescription } from '../lib/import-hash'
 import { extractMerchantName } from '../lib/supplier-extract'
 import { findBestSupplierMatch, type SupplierCandidate } from '../lib/supplier-match'
-import { braveSearch, pickWebsite, type BraveLookup } from '../lib/brave-search'
+import { braveSearch, pickWebsite, BraveAuthError, BraveRateLimitError, type BraveLookup } from '../lib/brave-search'
+
+// Person-name shaped strings extracted from PAYSHAP / IB PAYMENT prefixes
+// (e.g. "B Maphosa", "Thuli Ndlovu") shouldn't be sent to an external search
+// API for POPIA reasons. We still create the supplier locally — just without
+// the enrichment call.
+const PERSONAL_NAME_PATTERN = /^[A-Z]\s+[A-Z][a-z]+$|^[A-Z][a-z]+\s+[A-Z]\s+[A-Z][a-z]+$|^[A-Z][a-z]+\s+[A-Z][a-z]+$/
 import { hashPassword } from '../lib/password'
+import { validatePassword } from '../lib/password-policy'
 import type { UserRole } from '@prisma/client'
 
 const ALLOWED_EMAIL_DOMAIN = '@kgolaentle.com'
@@ -265,11 +272,24 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
     return c.json({ error: 'User exists in a different tenant' }, 409)
   }
 
+  // Enforce password policy on every supplied password (create or update).
+  if (password !== undefined) {
+    const policy = validatePassword(password)
+    if (!policy.ok) return c.json({ error: policy.error }, 400)
+  }
+
   const passwordHash = password ? await hashPassword(password) : undefined
   if (!existing && !passwordHash) return c.json({ error: 'password is required when creating a new user' }, 400)
 
-  const upserted = existing
-    ? await prisma.user.update({
+  // Revoke any existing sessions when an admin sets a new password or
+  // deactivates the account — otherwise a stale token keeps the user
+  // authenticated indefinitely after a credential reset.
+  const shouldRevokeSessions = existing && (passwordHash || active === false)
+
+  let upserted: { id: string; email: string; name: string; role: UserRole; active: boolean; createdAt: Date }
+  if (existing) {
+    const [updated] = await prisma.$transaction([
+      prisma.user.update({
         where: { id: existing.id },
         data: {
           name,
@@ -278,18 +298,25 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
           ...(passwordHash ? { passwordHash } : {}),
         },
         select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
-      })
-    : await prisma.user.create({
-        data: {
-          tenantId: actor.tenantId,
-          email,
-          name,
-          role,
-          active,
-          passwordHash: passwordHash!,
-        },
-        select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
-      })
+      }),
+      ...(shouldRevokeSessions
+        ? [prisma.session.deleteMany({ where: { userId: existing.id } })]
+        : []),
+    ])
+    upserted = updated
+  } else {
+    upserted = await prisma.user.create({
+      data: {
+        tenantId: actor.tenantId,
+        email,
+        name,
+        role,
+        active,
+        passwordHash: passwordHash!,
+      },
+      select: { id: true, email: true, name: true, role: true, active: true, createdAt: true },
+    })
+  }
 
   return c.json({ ok: true, user: upserted, created: !existing }, existing ? 200 : 201)
 }
@@ -399,22 +426,20 @@ export async function applySupplierMigration(c: Context<AppEnv>) {
       label: 'index Supplier_tenantId_reviewStatus_idx',
       sql: `CREATE INDEX IF NOT EXISTS "Supplier_tenantId_reviewStatus_idx" ON "Supplier"("tenantId", "reviewStatus");`,
     },
-    {
-      label: 'register migration in _prisma_migrations',
-      sql: `INSERT INTO "_prisma_migrations" (id, checksum, migration_name, started_at, finished_at, applied_steps_count)
-        VALUES (
-          '20260518122733_add_supplier_review_lookup',
-          'applied-via-admin-endpoint',
-          '20260518122733_add_supplier_review_lookup',
-          NOW(), NOW(), 1
-        )
-        ON CONFLICT (id) DO NOTHING;`,
-    },
     // Migration: 20260518135155_add_session_last_seen_at
     {
       label: 'Session.lastSeenAt',
       sql: `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;`,
     },
+    // NOTE: this endpoint deliberately does NOT touch _prisma_migrations.
+    // After running these DDLs, the operator should run from a host with the
+    // prod DATABASE_URL:
+    //   pnpm --filter @bms/db exec prisma migrate resolve \
+    //     --applied 20260518122733_add_supplier_review_lookup
+    //   pnpm --filter @bms/db exec prisma migrate resolve \
+    //     --applied 20260518135155_add_session_last_seen_at
+    // …so a future `prisma migrate deploy` from CI does not try to re-apply
+    // these migrations against a DB where the columns already exist.
   ]
 
   const results: Array<{ label: string; ok: boolean; error?: string }> = []
@@ -443,6 +468,10 @@ export async function resetAutoSuppliers(c: Context<AppEnv>) {
     where: {
       tenantId: user.tenantId,
       lookupSource: { in: ['IMPORT_AUTO', 'BRAVE'] },
+      // Preserve human-promoted suppliers — only purge entries still flagged
+      // for review. A reviewer who confirms an auto-created supplier sets
+      // reviewStatus = CONFIRMED, which protects it from this purge.
+      reviewStatus: 'NEEDS_REVIEW',
     },
     select: { id: true },
   })
@@ -492,7 +521,9 @@ export async function processUnknownSuppliers(c: Context<AppEnv>) {
   const skipSearch = c.req.query('skipSearch') === 'true'
 
   const apiKey = process.env.BRAVE_SEARCH_API_KEY
-  const canSearch = !skipSearch && Boolean(apiKey)
+  // `canSearch` can flip to false mid-loop if Brave returns 401/403 — let, not const.
+  let canSearch = !skipSearch && Boolean(apiKey)
+  let braveDisabledReason: string | null = null
 
   // Load existing suppliers + aliases for fuzzy matching
   const dbSuppliers = await prisma.supplier.findMany({
@@ -567,16 +598,29 @@ export async function processUnknownSuppliers(c: Context<AppEnv>) {
       continue
     }
 
-    // 3. Create a new supplier (with optional Brave lookup)
+    // 3. Create a new supplier (with optional Brave lookup).
+    // Skip the external call if the extracted name looks like a person —
+    // PAYSHAP / IB PAYMENT prefixes routinely surface real customer names
+    // that we shouldn't be sending to a third-party search API (POPIA).
     let lookup: BraveLookup | null = null
     let website: string | null = null
-    if (canSearch) {
+    const isPersonalName = PERSONAL_NAME_PATTERN.test(merchant)
+    if (canSearch && !isPersonalName) {
       try {
         lookup = await braveSearch(`${merchant} South Africa`, apiKey!, 3)
         website = pickWebsite(lookup)
-      } catch {
+      } catch (err) {
         searchFailures++
         lookup = null
+        // 401/403 means the key is bad for the whole batch — stop trying so
+        // we don't burn Worker CPU on doomed requests.
+        if (err instanceof BraveAuthError) {
+          canSearch = false
+          braveDisabledReason = 'auth_failed'
+        } else if (err instanceof BraveRateLimitError) {
+          canSearch = false
+          braveDisabledReason = `rate_limited${err.retryAfterSec ? `_retry_${err.retryAfterSec}s` : ''}`
+        }
       }
     }
 
@@ -620,6 +664,7 @@ export async function processUnknownSuppliers(c: Context<AppEnv>) {
     skipped,
     searchFailures,
     searchEnabled: canSearch,
+    braveDisabledReason,
     nextCursor: done ? null : nextCursor,
     done,
   })

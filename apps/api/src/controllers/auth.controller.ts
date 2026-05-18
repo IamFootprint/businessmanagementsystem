@@ -84,11 +84,14 @@ export async function logout(c: Context<AppEnv>) {
 
 export async function getMe(c: Context<AppEnv>) {
   const user = c.get('user')
+  // Don't fall back to the in-context user on a missing-row hit — that would
+  // leak deactivated state and stale phone numbers. Surface the error instead.
   const fresh = await prisma.user.findUnique({
     where: { id: user.id },
     select: { id: true, email: true, name: true, role: true, phone: true, active: true, lastLoginAt: true, createdAt: true },
   })
-  return c.json({ user: fresh ?? user })
+  if (!fresh) return c.json({ error: 'User not found' }, 404)
+  return c.json({ user: fresh })
 }
 
 /**
@@ -157,7 +160,9 @@ export async function changePassword(c: Context<AppEnv>) {
   const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { passwordHash: true } })
   // Always run bcrypt to prevent timing attacks
   const valid = await verifyPassword(body.currentPassword, dbUser?.passwordHash ?? DUMMY_HASH)
-  if (!dbUser || !valid) return c.json({ error: 'Current password is incorrect' }, 401)
+  // 400, not 401 — the caller IS authenticated; their submitted credential is
+  // wrong. 401 would trip auth-redirect middleware on web/mobile clients.
+  if (!dbUser || !valid) return c.json({ error: 'Current password is incorrect' }, 400)
 
   const newHash = await hashPassword(body.newPassword)
 

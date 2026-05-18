@@ -1,6 +1,12 @@
 import type { Context, MiddlewareHandler } from 'hono'
 import type { AppEnv } from '../types'
 
+// NOTE: buckets live in module-level Maps. On Cloudflare Workers these are
+// per-isolate and reset on cold start / new deployment, so the effective rate
+// limit is `max × isolate_count` per window — not a single global cap. That's
+// acceptable for BMS today (single tenant, low traffic, defence-in-depth
+// alongside bcrypt + login domain restriction). If the threat model changes,
+// swap the Map for Cloudflare Durable Objects or a KV-backed counter.
 type BucketEntry = { count: number; resetAt: number }
 type Buckets = Map<string, BucketEntry>
 
