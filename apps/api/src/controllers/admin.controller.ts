@@ -322,6 +322,121 @@ export async function upsertUserAdmin(c: Context<AppEnv>) {
 }
 
 /**
+ * POST /admin/delete-user — hard-delete a user with FK reassignment.
+ *
+ * Body: { email, transferToEmail }
+ *
+ * For tables where User is a REQUIRED FK (StatementImport.importedById,
+ * MonthlyPeriodEvent.actorId), every row owned by the source user is
+ * reassigned to the transferTo user.
+ *
+ * For tables where User is OPTIONAL (TransactionAuditEvent.actorId,
+ * Transaction.reviewedById, Receipt.uploadedById / matchedById), the FK is
+ * NULLed — "we no longer know who" is more honest than fake-attribution to
+ * a different person.
+ *
+ * Sessions cascade-delete automatically (Session.userId has onDelete: Cascade).
+ *
+ * Refusals:
+ *   - Can't delete self
+ *   - Can't delete the last active TENANT_OWNER (would lock out the system)
+ *   - transferTo must be in the same tenant
+ *
+ * Restricted to TENANT_OWNER.
+ */
+export async function deleteUserAdmin(c: Context<AppEnv>) {
+  const actor = c.get('user')
+
+  type Body = { email?: string; transferToEmail?: string }
+  const body = await c.req.json<Body>().catch(() => ({} as Body))
+
+  const email = body.email?.trim().toLowerCase()
+  const transferToEmail = body.transferToEmail?.trim().toLowerCase()
+
+  if (!email) return c.json({ error: 'email is required' }, 400)
+  if (!transferToEmail) return c.json({ error: 'transferToEmail is required (for required-FK reassignment)' }, 400)
+  if (email === transferToEmail) return c.json({ error: 'email and transferToEmail must differ' }, 400)
+  if (email === actor.email) return c.json({ error: 'Cannot delete your own account' }, 400)
+
+  const [source, transferTo] = await Promise.all([
+    prisma.user.findUnique({ where: { email }, select: { id: true, tenantId: true, role: true, email: true } }),
+    prisma.user.findUnique({ where: { email: transferToEmail }, select: { id: true, tenantId: true } }),
+  ])
+
+  if (!source) return c.json({ error: `User ${email} not found` }, 404)
+  if (source.tenantId !== actor.tenantId) return c.json({ error: 'User belongs to a different tenant' }, 403)
+
+  if (!transferTo) return c.json({ error: `Transfer target ${transferToEmail} not found` }, 404)
+  if (transferTo.tenantId !== actor.tenantId) return c.json({ error: 'Transfer target belongs to a different tenant' }, 403)
+
+  // Refuse if deleting the last active TENANT_OWNER.
+  if (source.role === 'TENANT_OWNER') {
+    const otherOwners = await prisma.user.count({
+      where: {
+        tenantId: actor.tenantId,
+        role: 'TENANT_OWNER',
+        active: true,
+        id: { not: source.id },
+      },
+    })
+    if (otherOwners === 0) {
+      return c.json({ error: 'Refusing to delete the last active TENANT_OWNER' }, 409)
+    }
+  }
+
+  // All FK fix-ups + delete in a single transaction so we don't end up half-deleted.
+  const [
+    statementImportsReassigned,
+    monthlyPeriodEventsReassigned,
+    transactionAuditEventsNulled,
+    transactionsReviewedNulled,
+    receiptsUploadedNulled,
+    receiptsMatchedNulled,
+  ] = await prisma.$transaction([
+    prisma.statementImport.updateMany({
+      where: { importedById: source.id },
+      data: { importedById: transferTo.id },
+    }),
+    prisma.monthlyPeriodEvent.updateMany({
+      where: { actorId: source.id },
+      data: { actorId: transferTo.id },
+    }),
+    prisma.transactionAuditEvent.updateMany({
+      where: { actorId: source.id },
+      data: { actorId: null },
+    }),
+    prisma.transaction.updateMany({
+      where: { reviewedById: source.id },
+      data: { reviewedById: null },
+    }),
+    prisma.receipt.updateMany({
+      where: { uploadedById: source.id },
+      data: { uploadedById: null },
+    }),
+    prisma.receipt.updateMany({
+      where: { matchedById: source.id },
+      data: { matchedById: null },
+    }),
+    // Session.userId has onDelete: Cascade — sessions disappear with the user.
+    prisma.user.delete({ where: { id: source.id } }),
+  ])
+
+  return c.json({
+    ok: true,
+    deletedEmail: source.email,
+    reassignedTo: transferToEmail,
+    counts: {
+      statementImportsReassigned: statementImportsReassigned.count,
+      monthlyPeriodEventsReassigned: monthlyPeriodEventsReassigned.count,
+      transactionAuditEventsNulled: transactionAuditEventsNulled.count,
+      transactionsReviewedNulled: transactionsReviewedNulled.count,
+      receiptsUploadedNulled: receiptsUploadedNulled.count,
+      receiptsMatchedNulled: receiptsMatchedNulled.count,
+    },
+  })
+}
+
+/**
  * POST /admin/seed-petty-cash — provisions the manual-entry plumbing.
  *
  * Idempotently creates:
