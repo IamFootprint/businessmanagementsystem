@@ -19,7 +19,7 @@ import { validatePassword } from '../lib/password-policy'
 import type { UserRole } from '@prisma/client'
 
 const ALLOWED_EMAIL_DOMAIN = '@kgolaentle.com'
-const VALID_ROLES: UserRole[] = ['TENANT_OWNER', 'FINANCE_MANAGER', 'ACCOUNTANT', 'AUDITOR']
+const VALID_ROLES: UserRole[] = ['TENANT_OWNER', 'FINANCE_MANAGER', 'ACCOUNTANT', 'AUDITOR', 'DRIVER']
 
 export const PETTY_CASH_NICKNAME = 'Petty Cash'
 export const MANUAL_ENTRIES_FILENAME = '__manual_cash_entries__'
