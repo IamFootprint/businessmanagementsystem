@@ -41,29 +41,4 @@ export function registerRoutes(app: Hono<AppEnv>) {
     return c.json({ data })
   })
 
-  // TEMPORARY bootstrap. Removed in the follow-up commit after the migration lands.
-  app.post('/admin/bootstrap-driver-migration', async (c) => {
-    const token = c.req.header('X-Bootstrap-Token')
-    if (!token || token !== 'bms-bootstrap-driver-2026-05-18') {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-    try {
-      await prisma.$executeRawUnsafe(
-        `ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'DRIVER';`,
-      )
-      await prisma.$executeRawUnsafe(
-        `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "defaultBusinessId" TEXT;`,
-      )
-      await prisma.$executeRawUnsafe(
-        `DO $$ BEGIN
-          ALTER TABLE "User" ADD CONSTRAINT "User_defaultBusinessId_fkey"
-            FOREIGN KEY ("defaultBusinessId") REFERENCES "Business"("id")
-            ON DELETE SET NULL ON UPDATE CASCADE;
-        EXCEPTION WHEN duplicate_object THEN null; END $$;`,
-      )
-      return c.json({ ok: true, applied: ['UserRole.DRIVER', 'User.defaultBusinessId', 'User.defaultBusinessId FK'] })
-    } catch (err) {
-      return c.json({ ok: false, error: err instanceof Error ? err.message : 'unknown' }, 500)
-    }
-  })
 }
