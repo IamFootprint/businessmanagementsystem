@@ -27,7 +27,7 @@ export default function LoginPage() {
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4">
-          {state?.error && (
+          {state?.status === 'error' && (
             <div
               role="alert"
               className="rounded-md px-3 py-2 text-sm"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/receipts/upload']
+const PUBLIC_PATHS = ['/login', '/admin-sign-in', '/receipts/upload']
 const MOBILE_APP_URL = process.env.MOBILE_APP_URL
 
 function isMobile(ua: string): boolean {

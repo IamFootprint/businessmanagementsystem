@@ -3,7 +3,12 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { apiRequest } from '@/lib/api-client'
 
-export type LoginState = { error: string } | null
+export type LoginState =
+  | null
+  | { status: 'idle' }
+  | { status: 'error'; error: string; email?: string; attemptsUsed?: number; attemptsMax?: number }
+  | { status: '2fa-required'; email?: string }
+  | { status: 'locked'; retryAfter?: number }
 
 export async function loginAction(
   _prev: LoginState,
@@ -13,7 +18,7 @@ export async function loginAction(
   const password = formData.get('password') as string
 
   if (!email || !password) {
-    return { error: 'Email and password are required' }
+    return { status: 'error', error: 'Email and password are required' }
   }
 
   let token: string
@@ -24,7 +29,7 @@ export async function loginAction(
     })
     token = result.token
   } catch {
-    return { error: 'Invalid email or password' }
+    return { status: 'error', error: 'Invalid email or password', email }
   }
 
   const cookieStore = await cookies()
