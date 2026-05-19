@@ -27,8 +27,8 @@ export const metadata: Metadata = {
     title: 'BMS',
   },
   icons: {
-    icon: '/brand/kh-favicon-32.png',
-    apple: '/brand/kh-apple-touch.png',
+    icon: '/brand/pap-icon-32.png',
+    apple: '/brand/pap-icon-180.png',
   },
   formatDetection: { telephone: false },
 }

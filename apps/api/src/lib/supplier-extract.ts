@@ -17,6 +17,8 @@ const PREFIXES = [
   'CELLPHONE INSTANTMON CASH TO - ',
   'IMMEDIATE INTERACCOUNT TRF - ',
   'ELECTRONIC ACCOUNT PAYMENT - ',
+  'ELECTRONIC TRF-CREDIT CARD - ',
+  'IB PAYMENT TO BIZFLEX LOAN - ',
   'DEBIT CARD PURCHASE FROM - ',
   'PAYSHAP PAYMENT FROM - ',
   'PAYSHAP PAYMENT TO - ',
@@ -59,6 +61,7 @@ const SKIP_SUBSTRINGS = [
   'MYUPDATES FOR BUSINESS',
   'UCOUNT',
   '#INTERNATIONAL',
+  '#INTL',
   'MEMBERSHIP FEE',
   'FEE - INSTANT MONEY',
   'INSTANT MONEY',
@@ -67,7 +70,15 @@ const SKIP_SUBSTRINGS = [
   'DEPOSIT - ',
   'OPENING BALANCE',
   'CLOSING BALANCE',
+  // Bank-internal lines that look like merchants but aren't
+  'BIZFLEX LOAN',
+  'INTL TRANS FE',
+  'OVERDRAFT FACILITY',
 ]
+
+const LONG_MONTH = /\b(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\b/
+const PHONE_LIKE = /^\d{9,11}(\s|$)/      // 0603095371 ...
+const STARTS_WITH_DATE = /^\d{1,2}\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)/
 
 const MONTH_TOKEN = /\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/
 const CARD_STUB = /\s+\d{4}\*\d{2,4}.*$/  // "4278*0900 15 MAR"
@@ -122,12 +133,13 @@ export function extractMerchantName(rawDescription: string): ExtractResult {
   // If what's left is just a date, all numbers, or empty — bail
   if (!remainder) return { merchant: null, reason: 'empty' }
   if (ONLY_DIGITS_OR_NOISE.test(remainder)) return { merchant: null, reason: 'numeric_only' }
+  if (PHONE_LIKE.test(remainder)) return { merchant: null, reason: 'numeric_only' }
   if (remainder.length < 3) return { merchant: null, reason: 'too_short' }
 
-  // If it's date-only after stripping (e.g. "20 FEBRUARY 2026")
-  if (MONTH_TOKEN.test(remainder) && /^\d/.test(remainder)) {
-    return { merchant: null, reason: 'date_only' }
-  }
+  // If it's date-only after stripping (e.g. "20 FEBRUARY 2026", "15 MAR")
+  if (STARTS_WITH_DATE.test(remainder)) return { merchant: null, reason: 'date_only' }
+  if (LONG_MONTH.test(remainder) && /^\d/.test(remainder)) return { merchant: null, reason: 'date_only' }
+  if (MONTH_TOKEN.test(remainder) && /^\d/.test(remainder)) return { merchant: null, reason: 'date_only' }
 
   // Collapse whitespace, title-case for readability
   const merchant = remainder.replace(/\s+/g, ' ').trim()

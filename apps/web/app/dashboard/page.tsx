@@ -20,7 +20,10 @@ function AttentionRow({ color, icon, title, sub, href, cta }: {
 }
 
 export default async function DashboardPage() {
-  const [needsReviewCount, unclearCount, latestTx, periods, unmatchedReceipts] = await Promise.all([
+  const today = new Date()
+  const dateFromThisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+
+  const [needsReviewCount, unclearCount, latestTx, periods, unmatchedReceipts, spendingTx] = await Promise.all([
     apiRequestAuthenticated<{ meta: { total: number } }>(
       '/transactions?reviewStatus=NEEDS_REVIEW&pageSize=1'
     ).then(r => r.meta.total).catch(() => 0),
@@ -47,6 +50,16 @@ export default async function DashboardPage() {
     apiRequestAuthenticated<{ receipts: unknown[] }>(
       '/receipts?matchStatus=UNMATCHED'
     ).then(r => Array.isArray(r.receipts) ? r.receipts.length : 0).catch(() => 0),
+
+    apiRequestAuthenticated<{
+      data: Array<{
+        id: string
+        transactionDate: string
+        amountCents: number
+        direction: string
+        category: { id: string; name: string } | null
+      }>
+    }>(`/transactions?pageSize=100&page=1&dateFrom=${dateFromThisMonth}`).then(r => r.data).catch(() => []),
   ])
 
   const openPeriod = periods.find(p => p.status === 'OPEN')
@@ -56,12 +69,35 @@ export default async function DashboardPage() {
 
   const attentionCount = (needsReviewCount > 0 ? 1 : 0) + (unclearCount > 0 ? 1 : 0) + (unmatchedReceipts > 0 ? 1 : 0)
 
-  const today = new Date()
   const isCurrentPeriod = openPeriod?.year === today.getFullYear() && openPeriod?.month === (today.getMonth() + 1)
   const isPastPeriod = openPeriod && (openPeriod.year < today.getFullYear() || (openPeriod.year === today.getFullYear() && openPeriod.month < today.getMonth() + 1))
   const periodProgress = isCurrentPeriod
     ? Math.round((today.getDate() / new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()) * 100)
     : isPastPeriod ? 100 : 0
+
+  // Compute spending by category from DEBIT transactions
+  const spendingMap = new Map<string, number>()
+  for (const tx of spendingTx) {
+    if (tx.direction !== 'DEBIT') continue
+    const cat = tx.category?.name ?? 'Uncategorised'
+    spendingMap.set(cat, (spendingMap.get(cat) ?? 0) + tx.amountCents)
+  }
+  const spendingByCategory = Array.from(spendingMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+  const maxSpend = spendingByCategory[0]?.[1] ?? 0
+
+  // Relative date helper — compare calendar dates in local time to avoid UTC-offset shifts
+  function relativeDate(dateStr: string): string {
+    const [y, m, d] = dateStr.split('T')[0].split('-').map(Number)
+    const txMidnight = new Date(y, m - 1, d)
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const diffDays = Math.round((todayMidnight.getTime() - txMidnight.getTime()) / 86400000)
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays} days ago`
+    return `${MONTHS[m - 1]} ${d}`
+  }
 
   return (
     <div className="px-[var(--page-gutter)] py-6 max-w-[1400px]">
@@ -119,7 +155,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Two-column grid */}
+      {/* Grid 1: Needs your attention (2fr) + Recent activity (1fr) */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-6">
         {/* Left: Needs your attention */}
         <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-panel)] p-5">
@@ -164,6 +200,76 @@ export default async function DashboardPage() {
               <p className="py-6 text-center text-[13px] text-[var(--color-ink-3)]">All caught up ✓</p>
             )}
           </div>
+        </div>
+
+        {/* Right: Recent activity */}
+        <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-panel)] p-5">
+          <p className="mb-4 text-[13px] font-semibold text-[var(--color-ink)]">Recent activity</p>
+          <div className="space-y-0">
+            {latestTx.slice(0, 6).map(tx => {
+              const isCredit = tx.direction === 'CREDIT'
+              const amount = (tx.amountCents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2 })
+              return (
+                <div key={tx.id} className="flex items-center gap-3 border-b border-[var(--color-border-2)] py-2.5 last:border-0">
+                  {/* Colored circle */}
+                  <div
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                    style={{ backgroundColor: isCredit ? 'var(--color-pos)' : 'var(--color-neg)' }}
+                  >
+                    {isCredit ? '+' : '−'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-[var(--color-ink)]">{tx.rawDescription}</p>
+                    <p className="text-[11.5px] text-[var(--color-ink-3)]">{relativeDate(tx.transactionDate)}</p>
+                  </div>
+                  <span
+                    className="shrink-0 text-[13px] font-medium tabular-nums"
+                    style={{ color: isCredit ? 'var(--color-pos)' : 'var(--color-neg)' }}
+                  >
+                    {isCredit ? '+' : '−'}R {amount}
+                  </span>
+                </div>
+              )
+            })}
+            {latestTx.length === 0 && (
+              <p className="py-6 text-center text-[12px] text-[var(--color-ink-3)]">No recent activity</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Grid 2: Spending by category (2fr) + Latest transactions (1fr) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-6">
+        {/* Left: Spending by category */}
+        <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-panel)] p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-[13px] font-semibold text-[var(--color-ink)]">Spending by category</p>
+            <p className="text-[12px] text-[var(--color-ink-3)]">{openPeriodLabel}</p>
+          </div>
+          {spendingByCategory.length === 0 ? (
+            <p className="py-6 text-center text-[12px] text-[var(--color-ink-3)]">No expense data for this period</p>
+          ) : (
+            <div className="space-y-3">
+              {spendingByCategory.map(([cat, cents]) => {
+                const pct = maxSpend > 0 ? Math.round((cents / maxSpend) * 100) : 0
+                const amount = (cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2 })
+                return (
+                  <div key={cat}>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="truncate text-[13px] text-[var(--color-ink)]">{cat}</p>
+                      <span className="shrink-0 text-[12px] tabular-nums font-mono text-[var(--color-ink-2)]">R {amount}</span>
+                    </div>
+                    <div className="h-[6px] w-full rounded-full bg-[var(--color-border)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--color-accent)]"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Right: Latest transactions */}

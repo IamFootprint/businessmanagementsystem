@@ -10,17 +10,17 @@
   "categories": ["finance", "business"],
   "icons": [
     {
-      "src": "/brand/kh-logo-64.png",
+      "src": "/brand/pap-icon-64.png",
       "sizes": "64x64",
       "type": "image/png"
     },
     {
-      "src": "/brand/kh-logo-128.png",
+      "src": "/brand/pap-icon-128.png",
       "sizes": "128x128",
       "type": "image/png"
     },
     {
-      "src": "/brand/kh-logo-256.png",
+      "src": "/brand/pap-icon-256.png",
       "sizes": "256x256",
       "type": "image/png",
       "purpose": "any maskable"
