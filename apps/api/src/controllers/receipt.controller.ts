@@ -1,11 +1,11 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
 import { prisma, ReceiptMatchStatus } from '@bms/db'
-import { put } from '@vercel/blob'
 import { rankCandidates } from '../lib/receipt-match'
 import { extractReceipt, OpenAIAuthError, OpenAIRateLimitError } from '../lib/openai-vision'
 import { findBestSupplierMatch, type SupplierCandidate } from '../lib/supplier-match'
 import { applyRulesToTransactions } from '../lib/rules-engine'
+import { putReceipt } from '../lib/r2-storage'
 
 const STALE_DAYS = 90
 const STALE_MS = STALE_DAYS * 24 * 60 * 60 * 1000
@@ -32,8 +32,7 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
     return c.json({ error: 'Only JPEG, PNG, WEBP, GIF, and PDF files are accepted' }, 415)
   }
 
-  const blobToken = c.env.BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
-  if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
+  if (!c.env.RECEIPTS_BUCKET) return c.json({ error: 'Storage not configured (R2 bucket missing)' }, 500)
 
   const lat = formData.get('lat')
   const lng = formData.get('lng')
@@ -45,11 +44,9 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
   const safeFileName = (file as File).name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'upload'
   let storagePath: string
   try {
-    const blob = await put(`receipts/${Date.now()}-${safeFileName}`, file as File, {
-      access: 'public',
-      token: blobToken,
-    })
-    storagePath = blob.url
+    const bytes = await (file as File).arrayBuffer()
+    const stored = await putReceipt(c.env.RECEIPTS_BUCKET, safeFileName, bytes, mimeType)
+    storagePath = stored.url
   } catch {
     return c.json({ error: 'Storage upload failed' }, 500)
   }
@@ -293,14 +290,11 @@ export async function captureReceipt(c: Context<AppEnv>) {
     return c.json({ error: 'Receipt capture requires an image (JPEG, PNG, WEBP, or GIF)' }, 415)
   }
 
-  // Read from c.env (the Worker binding) first — process.env is not always
-  // populated for secrets set after initial deploy on this CF compatibility date.
   const apiKey = c.env.OPENAI_API_KEY ?? process.env.OPENAI_API_KEY
   if (!apiKey) return c.json({ error: 'OCR not configured (OPENAI_API_KEY missing)' }, 500)
-  const blobToken = c.env.BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
-  if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
+  if (!c.env.RECEIPTS_BUCKET) return c.json({ error: 'Storage not configured (R2 bucket missing)' }, 500)
 
-  // 1. Read bytes once — needed by both the upload AND the OCR call.
+  // Read bytes once — needed by both the R2 upload AND the OCR call.
   let imageBytes: ArrayBuffer
   try {
     imageBytes = await f.arrayBuffer()
@@ -308,29 +302,23 @@ export async function captureReceipt(c: Context<AppEnv>) {
     return c.json({ error: 'Could not read uploaded file' }, 400)
   }
 
-  // 2. Upload to Vercel Blob (in parallel with OCR for speed)
-  const safeFileName = f.name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'receipt'
-  const blobUpload = put(`receipts/${Date.now()}-${safeFileName}`, imageBytes, {
-    access: 'public',
-    token: blobToken,
-    contentType: mimeType,
-  })
-
-  // 3. Run OCR in parallel
+  // Upload to R2 + run OCR in parallel for speed.
   let ocrResult: Awaited<ReturnType<typeof extractReceipt>>
   let storagePath: string
   try {
-    const [blob, ocr] = await Promise.all([
-      blobUpload,
+    const [stored, ocr] = await Promise.all([
+      putReceipt(c.env.RECEIPTS_BUCKET, f.name, imageBytes, mimeType),
       extractReceipt(imageBytes, mimeType, apiKey),
     ])
-    storagePath = blob.url
+    storagePath = stored.url
     ocrResult = ocr
   } catch (err) {
     if (err instanceof OpenAIAuthError) return c.json({ error: 'OCR service authentication failed' }, 500)
     if (err instanceof OpenAIRateLimitError) return c.json({ error: 'OCR service rate limited — try again shortly' }, 503)
     return c.json({ error: `Capture failed: ${err instanceof Error ? err.message : 'unknown'}` }, 500)
   }
+
+  const safeFileName = f.name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'receipt'
 
   // 4. Fuzzy-match merchant against existing suppliers
   let supplierMatch: { id: string; name: string; score: number } | null = null
@@ -465,4 +453,30 @@ export async function listMyReceipts(c: Context<AppEnv>) {
     },
   })
   return c.json({ data: receipts })
+}
+
+/**
+ * GET /receipts/file/:key — stream a receipt photo from R2.
+ *
+ * No session required: the key is a CUID-style random nonce (~96 bits of
+ * entropy) that's only handed out via authenticated endpoints, so anyone who
+ * holds the URL is implicitly authorised. Same security model as Vercel Blob's
+ * default public URLs.
+ *
+ * Sets long browser caching (1 year, immutable) since receipt photos never change.
+ */
+export async function getReceiptFile(c: Context<AppEnv>) {
+  const key = c.req.param('key')
+  if (!key) return c.json({ error: 'key is required' }, 400)
+  if (!c.env.RECEIPTS_BUCKET) return c.json({ error: 'Storage not configured' }, 500)
+
+  const obj = await c.env.RECEIPTS_BUCKET.get(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+
+  const headers = new Headers()
+  if (obj.httpMetadata?.contentType) headers.set('Content-Type', obj.httpMetadata.contentType)
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  headers.set('Content-Length', String(obj.size))
+
+  return new Response(obj.body, { status: 200, headers })
 }

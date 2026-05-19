@@ -3,9 +3,9 @@ import { prisma } from '@bms/db'
 import type { AppEnv } from '../types'
 import type { ReviewStatus, TransactionType, Prisma } from '@bms/db'
 import { writeAuditEvent } from '../lib/audit'
-import { put } from '@vercel/blob'
 import { cleanDescription, makeTransactionHash } from '../lib/import-hash'
 import { applyRulesToTransactions } from '../lib/rules-engine'
+import { putReceipt } from '../lib/r2-storage'
 import { PETTY_CASH_NICKNAME, MANUAL_ENTRIES_FILENAME } from './admin.controller'
 
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024
@@ -380,16 +380,12 @@ export async function createManualTransaction(c: Context<AppEnv>) {
     const mime = receiptFile.type || 'application/octet-stream'
     if (!ALLOWED_RECEIPT_MIMES.has(mime)) return c.json({ error: 'Receipt must be JPEG, PNG, WEBP, GIF or PDF' }, 415)
 
-    const blobToken = c.env.BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
-    if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
+    if (!c.env.RECEIPTS_BUCKET) return c.json({ error: 'Storage not configured (R2 bucket missing)' }, 500)
 
-    const safeName = receiptFile.name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'receipt'
     try {
-      const blob = await put(`receipts/${Date.now()}-${safeName}`, receiptFile, {
-        access: 'public',
-        token: blobToken,
-      })
-      receiptStoragePath = blob.url
+      const bytes = await receiptFile.arrayBuffer()
+      const stored = await putReceipt(c.env.RECEIPTS_BUCKET, receiptFile.name, bytes, mime)
+      receiptStoragePath = stored.url
     } catch {
       return c.json({ error: 'Receipt upload failed' }, 500)
     }

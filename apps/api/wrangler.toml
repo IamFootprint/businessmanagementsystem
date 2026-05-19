@@ -4,5 +4,15 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 # Secrets (set via: wrangler secret put <KEY>)
-# DATABASE_URL       — Neon connection string
-# BLOB_READ_WRITE_TOKEN — Vercel Blob token (for receipt uploads)
+# DATABASE_URL          — Neon connection string
+# SESSION_SECRET        — auth crypto
+# API_SECRET            — auth crypto
+# OPENAI_API_KEY        — OpenAI vision (receipt OCR)
+# BRAVE_SEARCH_API_KEY  — Brave Search (unknown-supplier enrichment, optional)
+
+# R2 bucket for receipt photo storage. Files are served back to clients via
+# GET /receipts/file/:key (Worker-proxied stream) so the bucket itself doesn't
+# need public access enabled — security via unguessable CUID-based keys.
+[[r2_buckets]]
+binding = "RECEIPTS_BUCKET"
+bucket_name = "bms-receipts"
