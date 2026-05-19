@@ -32,7 +32,7 @@ export async function uploadReceiptPublic(c: Context<AppEnv>) {
     return c.json({ error: 'Only JPEG, PNG, WEBP, GIF, and PDF files are accepted' }, 415)
   }
 
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+  const blobToken = c.env.BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
   if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
 
   const lat = formData.get('lat')
@@ -293,9 +293,11 @@ export async function captureReceipt(c: Context<AppEnv>) {
     return c.json({ error: 'Receipt capture requires an image (JPEG, PNG, WEBP, or GIF)' }, 415)
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
+  // Read from c.env (the Worker binding) first — process.env is not always
+  // populated for secrets set after initial deploy on this CF compatibility date.
+  const apiKey = c.env.OPENAI_API_KEY ?? process.env.OPENAI_API_KEY
   if (!apiKey) return c.json({ error: 'OCR not configured (OPENAI_API_KEY missing)' }, 500)
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+  const blobToken = c.env.BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
   if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
 
   // 1. Read bytes once — needed by both the upload AND the OCR call.

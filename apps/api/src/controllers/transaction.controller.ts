@@ -380,7 +380,7 @@ export async function createManualTransaction(c: Context<AppEnv>) {
     const mime = receiptFile.type || 'application/octet-stream'
     if (!ALLOWED_RECEIPT_MIMES.has(mime)) return c.json({ error: 'Receipt must be JPEG, PNG, WEBP, GIF or PDF' }, 415)
 
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+    const blobToken = c.env.BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
     if (!blobToken) return c.json({ error: 'Storage not configured' }, 500)
 
     const safeName = receiptFile.name.replace(/[^\w.\-]/g, '_').slice(0, 128) || 'receipt'

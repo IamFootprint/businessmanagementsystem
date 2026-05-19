@@ -10,6 +10,12 @@ export type SessionUser = {
 }
 
 export type AppEnv = {
+  Bindings: {
+    DATABASE_URL: string
+    BLOB_READ_WRITE_TOKEN?: string
+    OPENAI_API_KEY?: string
+    BRAVE_SEARCH_API_KEY?: string
+  }
   Variables: {
     user: SessionUser
     sessionId: string

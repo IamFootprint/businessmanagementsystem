@@ -663,7 +663,7 @@ export async function processUnknownSuppliers(c: Context<AppEnv>) {
   const cursor = c.req.query('cursor') ?? undefined
   const skipSearch = c.req.query('skipSearch') === 'true'
 
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY
+  const apiKey = c.env.BRAVE_SEARCH_API_KEY ?? process.env.BRAVE_SEARCH_API_KEY
   // `canSearch` can flip to false mid-loop if Brave returns 401/403 — let, not const.
   let canSearch = !skipSearch && Boolean(apiKey)
   let braveDisabledReason: string | null = null
